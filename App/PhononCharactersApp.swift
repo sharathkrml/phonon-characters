@@ -17,7 +17,6 @@ struct PhononCharactersApp: App {
                 }
             }
             .frame(minWidth: 980, minHeight: 700)
-            .background(WindowMarker().frame(width: 0, height: 0))
             .preferredColorScheme(.light)
         }
         .defaultSize(width: 1180, height: 820)

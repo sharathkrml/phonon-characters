@@ -73,10 +73,8 @@ final class KeyMonitor {
 
     /// True when a focused field editor holds text, or when the key window is not our stage.
     private var isEditingText: Bool {
-        guard let window = NSApp.keyWindow,
-              window.identifier?.rawValue == WindowMarker.identifier
-        else { return true }
-
+        guard let window = NSApp.keyWindow else { return true }
+        if window.title.localizedCaseInsensitiveContains("settings") { return true }
         guard let responder = window.firstResponder as? NSTextView else { return false }
         return !responder.string.isEmpty || responder.hasMarkedText()
     }

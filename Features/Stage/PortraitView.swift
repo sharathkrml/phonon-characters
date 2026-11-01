@@ -1,8 +1,250 @@
 import SwiftUI
 
-/// A character drawn rather than photographed: ink silhouette, per-character palette, an emblem,
-/// a halo that reacts to the voice, and a mouth driven by real playback amplitude.
+/// Prefers illustrated layers from `Resources/Characters/<id>/`; falls back to the drawn sigil.
 struct PortraitView: View {
+    let character: Persona
+    let level: Float
+    let listening: Bool
+    let speaking: Bool
+
+    var body: some View {
+        if let art = CartoonArt.load(character.id) {
+            CartoonPortrait(
+                character: character,
+                art: art,
+                level: level,
+                listening: listening,
+                speaking: speaking
+            )
+        } else if let art = CharacterArt.load(character.id) {
+            LayeredPortrait(
+                character: character,
+                art: art,
+                level: level,
+                listening: listening,
+                speaking: speaking
+            )
+        } else {
+            ProceduralPortrait(
+                character: character,
+                level: level,
+                listening: listening,
+                speaking: speaking
+            )
+        }
+    }
+}
+
+// MARK: - Cartoon render
+
+private struct CartoonPortrait: View {
+    let character: Persona
+    let art: CartoonArt
+    let level: Float
+    let listening: Bool
+    let speaking: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 3600)) { context in
+            let time = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate
+            GeometryReader { proxy in
+                let side = min(proxy.size.width, proxy.size.height)
+                let palette = character.palette
+                let pulse = CGFloat(level)
+                let breathe = reduceMotion ? 0 : sin(time * 0.85) * 0.006
+                let sway = reduceMotion ? 0 : sin(time * 0.45) * 0.35
+                let drift = reduceMotion ? 0 : sin(time * 0.6) * 1.5
+
+                ZStack {
+                    PortraitAura(
+                        palette: palette,
+                        side: side,
+                        pulse: pulse,
+                        breathe: breathe,
+                        time: time,
+                        reduceMotion: reduceMotion
+                    )
+
+                    puppet(
+                        artSide: side * 0.86,
+                        pulse: pulse,
+                        breathe: breathe,
+                        sway: sway,
+                        drift: drift,
+                        side: side
+                    )
+
+                    PortraitEmblem(symbol: character.emblem.symbol, side: side, palette: palette)
+
+                    if listening {
+                        ListeningRing(palette: palette, side: side, level: level, diameter: 0.94)
+                    }
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .mask(portraitFade)
+            }
+        }
+        .accessibilityElement()
+        .accessibilityLabel("\(character.name). \(character.tagline).")
+        .accessibilityValue(listening ? "Listening" : (speaking ? "Speaking" : "Idle"))
+    }
+
+    @ViewBuilder
+    private func puppet(
+        artSide: CGFloat,
+        pulse: CGFloat,
+        breathe: CGFloat,
+        sway: Double,
+        drift: CGFloat,
+        side: CGFloat
+    ) -> some View {
+        if let face = art.face {
+            jawPuppet(
+                face: face,
+                artSide: artSide,
+                pulse: pulse,
+                breathe: breathe,
+                sway: sway,
+                drift: drift,
+                side: side
+            )
+        } else {
+            PortraitImage(cgImage: art.image)
+                .frame(width: artSide, height: artSide)
+                .scaleEffect(1 + pulse * 0.02 + breathe, anchor: .bottom)
+                .rotationEffect(.degrees(sway))
+                .offset(x: drift, y: side * 0.03 - pulse * 2)
+        }
+    }
+
+    private func jawPuppet(
+        face: FaceLayout,
+        artSide: CGFloat,
+        pulse: CGFloat,
+        breathe: CGFloat,
+        sway: Double,
+        drift: CGFloat,
+        side: CGFloat
+    ) -> some View {
+        let mouth = face.mouth
+        let mouthX = CGFloat(mouth.x) * artSide
+        let mouthY = CGFloat(mouth.y) * artSide
+        let mouthW = CGFloat(mouth.w) * artSide
+        let mouthH = CGFloat(mouth.h) * artSide
+        let jaw = pulse * artSide * 0.032
+
+        return ZStack {
+            PortraitImage(cgImage: art.image)
+
+            // A soft dark gap where the jaw opens. No hard mouth sprite.
+            Capsule()
+                .fill(Color.black.opacity(0.72))
+                .frame(width: mouthW * 0.62, height: max(1, jaw * 0.85 + 1))
+                .position(x: mouthX + mouthW / 2, y: mouthY + mouthH * 0.55 + jaw * 0.15)
+                .opacity(pulse < 0.05 ? 0 : 1)
+
+            // A single base image keeps hit testing predictable; the mouth is the capsule above.
+        }
+        .frame(width: artSide, height: artSide)
+        .scaleEffect(1 + pulse * 0.02 + breathe, anchor: .bottom)
+        .rotationEffect(.degrees(sway))
+        .offset(x: drift, y: side * 0.03 - pulse * 2)
+    }
+}
+
+// MARK: - Illustrated layers
+
+private struct LayeredPortrait: View {
+    let character: Persona
+    let art: CharacterArt
+    let level: Float
+    let listening: Bool
+    let speaking: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 3600)) { context in
+            let time = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate
+            GeometryReader { proxy in
+                let side = min(proxy.size.width, proxy.size.height)
+                let palette = character.palette
+                let pulse = CGFloat(level)
+                let breathe = reduceMotion ? 0 : sin(time * 0.85) * 0.006
+                let sway = reduceMotion ? 0 : sin(time * 0.45) * 0.35
+                let drift = reduceMotion ? 0 : sin(time * 0.6) * 1.5
+                let blinkPeriod = 4.6 + Double(abs(character.id.hashValue % 26)) / 10
+                let blink = !reduceMotion && time.truncatingRemainder(dividingBy: blinkPeriod) < 0.13
+
+                ZStack {
+                    PortraitAura(
+                        palette: palette,
+                        side: side,
+                        pulse: pulse,
+                        breathe: breathe,
+                        time: time,
+                        reduceMotion: reduceMotion
+                    )
+
+                    ZStack {
+                        mouth
+                        Image(nsImage: art.eyesClosed)
+                            .resizable()
+                            .interpolation(.high)
+                            .scaledToFit()
+                            .opacity(blink ? 1 : 0)
+                            .animation(.easeInOut(duration: 0.06), value: blink)
+                    }
+                    .frame(width: side * 0.92, height: side * 0.92)
+                    .scaleEffect(1 + pulse * 0.02 + breathe, anchor: .bottom)
+                    .rotationEffect(.degrees(sway))
+                    .offset(x: drift, y: side * 0.03 - pulse * 2)
+
+                    PortraitEmblem(symbol: character.emblem.symbol, side: side, palette: palette)
+
+                    if listening {
+                        ListeningRing(palette: palette, side: side, level: level)
+                    }
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .mask(portraitFade)
+            }
+        }
+        .accessibilityElement()
+        .accessibilityLabel("\(character.name). \(character.tagline).")
+        .accessibilityValue(listening ? "Listening" : (speaking ? "Speaking" : "Idle"))
+    }
+
+    private var mouth: some View {
+        let frames = [art.base, art.mouthSmall, art.mouthMedium, art.mouthWide]
+        let index = mouthIndex
+        return ZStack {
+            ForEach(0..<frames.count, id: \.self) { i in
+                Image(nsImage: frames[i])
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .opacity(i == index ? 1 : 0)
+            }
+        }
+        .animation(.easeOut(duration: 0.08), value: index)
+    }
+
+    private var mouthIndex: Int {
+        switch level {
+        case ..<0.06: 0
+        case ..<0.18: 1
+        case ..<0.38: 2
+        default: 3
+        }
+    }
+}
+
+// MARK: - Drawn fallback
+
+private struct ProceduralPortrait: View {
     let character: Persona
     let level: Float
     let listening: Bool
@@ -11,7 +253,7 @@ struct PortraitView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: reduceMotion ? 1 : 1.0 / 30.0, paused: reduceMotion)) { context in
+        TimelineView(.periodic(from: .now, by: 3600)) { context in
             let time = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate
             GeometryReader { proxy in
                 let side = min(proxy.size.width, proxy.size.height)
@@ -21,27 +263,14 @@ struct PortraitView: View {
                 let blink = !reduceMotion && time.truncatingRemainder(dividingBy: 5.4) < 0.13
 
                 ZStack {
-                    // Aura
-                    Circle()
-                        .fill(RadialGradient(
-                            colors: [palette.aura.opacity(0.38), palette.aura.opacity(0.08), .clear],
-                            center: .center,
-                            startRadius: side * 0.05,
-                            endRadius: side * 0.5
-                        ))
-                        .frame(width: side * 0.9, height: side * 0.9)
-                        .scaleEffect(1 + pulse * 0.075 + breathe)
-                        .blur(radius: 20)
-
-                    Circle()
-                        .strokeBorder(palette.accent.opacity(0.22), lineWidth: 1)
-                        .frame(width: side * 0.76, height: side * 0.76)
-                        .scaleEffect(1 + pulse * 0.045)
-
-                    Circle()
-                        .stroke(palette.ink.opacity(0.14), style: StrokeStyle(lineWidth: 1, dash: [2, 7]))
-                        .frame(width: side * 0.9, height: side * 0.9)
-                        .rotationEffect(.degrees(reduceMotion ? 0 : time * 2.5))
+                    PortraitAura(
+                        palette: palette,
+                        side: side,
+                        pulse: pulse,
+                        breathe: breathe,
+                        time: time,
+                        reduceMotion: reduceMotion
+                    )
 
                     // Neck, then shoulders
                     RoundedRectangle(cornerRadius: side * 0.035, style: .continuous)
@@ -109,25 +338,11 @@ struct PortraitView: View {
                         .offset(y: -side * 0.028)
 
                     if listening {
-                        Circle()
-                            .strokeBorder(palette.accent, lineWidth: 2)
-                            .frame(width: side * 0.78, height: side * 0.78)
-                            .scaleEffect(0.96 + CGFloat(level) * 0.1)
-                            .opacity(0.85)
+                        ListeningRing(palette: palette, side: side, level: level)
                     }
                 }
                 .frame(width: proxy.size.width, height: proxy.size.height)
-                .mask(
-                    LinearGradient(
-                        stops: [
-                            .init(color: .black, location: 0),
-                            .init(color: .black, location: 0.84),
-                            .init(color: .clear, location: 1),
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .mask(portraitFade)
             }
         }
         .accessibilityElement()
@@ -137,6 +352,97 @@ struct PortraitView: View {
 
     private var hairStyle: Int {
         abs(character.id.hashValue) % 3
+    }
+}
+
+// MARK: - Shared pieces
+
+private struct PortraitEmblem: View {
+    let symbol: String
+    let side: CGFloat
+    let palette: CharacterPalette
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(palette.paper.opacity(0.95))
+                .overlay(Circle().strokeBorder(palette.ink.opacity(0.7), lineWidth: 1.5))
+            Image(systemName: symbol)
+                .font(.system(size: side * 0.052, weight: .medium))
+                .foregroundStyle(palette.ink)
+        }
+        .frame(width: side * 0.11, height: side * 0.11)
+        .offset(y: side * 0.30)
+    }
+}
+
+private struct PortraitAura: View {
+    let palette: CharacterPalette
+    let side: CGFloat
+    let pulse: CGFloat
+    let breathe: CGFloat
+    let time: TimeInterval
+    let reduceMotion: Bool
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(RadialGradient(
+                    colors: [palette.aura.opacity(0.38), palette.aura.opacity(0.08), .clear],
+                    center: .center,
+                    startRadius: side * 0.05,
+                    endRadius: side * 0.5
+                ))
+                .frame(width: side * 0.9, height: side * 0.9)
+                .scaleEffect(1 + pulse * 0.075 + breathe)
+                .blur(radius: 20)
+
+            Circle()
+                .strokeBorder(palette.accent.opacity(0.22), lineWidth: 1)
+                .frame(width: side * 0.76, height: side * 0.76)
+                .scaleEffect(1 + pulse * 0.045)
+
+            Circle()
+                .stroke(palette.ink.opacity(0.14), style: StrokeStyle(lineWidth: 1, dash: [2, 7]))
+                .frame(width: side * 0.9, height: side * 0.9)
+                .rotationEffect(.degrees(reduceMotion ? 0 : time * 2.5))
+        }
+    }
+}
+
+private struct ListeningRing: View {
+    let palette: CharacterPalette
+    let side: CGFloat
+    let level: Float
+    var diameter: CGFloat = 0.78
+
+    var body: some View {
+        Circle()
+            .strokeBorder(palette.accent, lineWidth: 2)
+            .frame(width: side * diameter, height: side * diameter)
+            .scaleEffect(0.96 + CGFloat(level) * 0.1)
+            .opacity(0.85)
+    }
+}
+
+private let portraitFade = LinearGradient(
+    stops: [
+        .init(color: .black, location: 0),
+        .init(color: .black, location: 0.84),
+        .init(color: .clear, location: 1),
+    ],
+    startPoint: .top,
+    endPoint: .bottom
+)
+
+private struct PortraitImage: View {
+    let cgImage: CGImage
+
+    var body: some View {
+        Canvas { context, size in
+            context.draw(Image(decorative: cgImage, scale: 1), in: CGRect(origin: .zero, size: size))
+        }
+        .allowsHitTesting(false)
     }
 }
 
@@ -231,6 +537,7 @@ private struct HairStrandsShape: Shape {
             path.addQuadCurve(to: CGPoint(x: w * 0.12, y: h * 0.92), control: CGPoint(x: w * 0.05, y: h * 0.6))
             path.move(to: CGPoint(x: w * 0.95, y: h * 0.22))
             path.addQuadCurve(to: CGPoint(x: w * 0.88, y: h * 0.92), control: CGPoint(x: w * 0.95, y: h * 0.6))
+
         }
         return path
     }

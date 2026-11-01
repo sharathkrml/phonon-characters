@@ -61,7 +61,6 @@ struct StageView: View {
                 .padding(.bottom, 16)
             }
         }
-        .background(WindowMarker().frame(width: 0, height: 0))
         .onAppear { model.activate() }
         .onDisappear { model.deactivate() }
         .animation(.easeInOut(duration: 0.35), value: character.id)
@@ -98,6 +97,7 @@ struct StageView: View {
         ))
         .frame(width: side, height: side)
         .padding(.top, 2)
+        .allowsHitTesting(false)
     }
 
     private var chevrons: some View {
@@ -117,12 +117,23 @@ struct StageView: View {
         if let error = model.errorText {
             Banner(text: error, tint: .red) { model.errorText = nil }
         } else if let hint = model.hint {
-            Banner(text: hint, tint: character.palette.aura) { model.hint = nil }
+            Banner(
+                text: hint,
+                tint: character.palette.aura,
+                actionTitle: hintActionTitle,
+                action: model.suggestedInputUID == nil ? nil : { model.useSuggestedInput() }
+            ) { model.hint = nil }
         } else if model.busyLoading {
             Banner(text: "Waking the brain — the first load takes a few seconds.", tint: character.palette.aura, dismissible: false) {}
         } else if model.isListening && model.ears.state.isBusy {
             Banner(text: "Waking the ears — the first listen downloads 158 MB and compiles shaders.", tint: character.palette.aura, dismissible: false) {}
         }
+    }
+
+    private var hintActionTitle: String? {
+        guard let uid = model.suggestedInputUID else { return nil }
+        let name = AudioDevices.name(for: uid) ?? "built-in mic"
+        return "Use \(name)"
     }
 
     private var footer: some View {
@@ -173,12 +184,23 @@ private struct ChevronButton: View {
 private struct Banner: View {
     let text: String
     let tint: Color
+    let actionTitle: String?
+    let action: (() -> Void)?
     let dismissible: Bool
     let dismiss: () -> Void
 
-    init(text: String, tint: Color, dismissible: Bool = true, dismiss: @escaping () -> Void) {
+    init(
+        text: String,
+        tint: Color,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil,
+        dismissible: Bool = true,
+        dismiss: @escaping () -> Void
+    ) {
         self.text = text
         self.tint = tint
+        self.actionTitle = actionTitle
+        self.action = action
         self.dismissible = dismissible
         self.dismiss = dismiss
     }
@@ -190,6 +212,12 @@ private struct Banner: View {
                 .font(Theme.body(12))
                 .foregroundStyle(Theme.ink.opacity(0.85))
                 .lineLimit(2)
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .font(Theme.body(11.5, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .buttonStyle(.plain)
+            }
             if dismissible {
                 Button(action: dismiss) {
                     Image(systemName: "xmark")

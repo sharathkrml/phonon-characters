@@ -5,7 +5,7 @@ enum Emblem: String, CaseIterable {
 
     var symbol: String {
         switch self {
-        case .anchor: "anchor"
+        case .anchor: "sailboat.fill"
         case .tide: "water.waves"
         case .moon: "moon.stars.fill"
         case .flame: "flame.fill"

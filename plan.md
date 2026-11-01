@@ -6,7 +6,7 @@ character mid-sentence.
 
 - **Target:** macOS 15+, arm64 only (Phonon's Core ML core is arm64).
 - **Hardware:** MacBook Pro M1 Pro / 16 GB. Measured peak well under budget.
-- **Distribution:** code-only `.dmg` (15 MB). Weights and the optional ear runtime download
+- **Distribution:** `.dmg` with code and placeholder portraits (~25 MB). Weights and the optional ear runtime download
   on first launch.
 - **App:** `Phonon Characters`, `com.sharath.phononcharacters`.
 
@@ -22,7 +22,7 @@ character mid-sentence.
 | Brain | `LFM3-1.7B-Q4_K_M.gguf` (1.05 GB) via `llama serve` | LFM3 reference; 83–85 tok/s on this M1 Pro |
 | Ears | `Phonon-2.5-English` (158 MB) via Fermion engine | User request; 4.82 % WER, MLX, streaming |
 | Live STT | `ws://…/v1/audio/stream`, PCM16 frames | Partials ~0.5 s while speaking |
-| Portraits | Procedural SwiftUI sigils (ink silhouette + palette + emblem + reactive mouth) | No licensed art; swappable |
+| Portraits | AI cartoon medallions (`cartoon.png` + `face.json`), layered/procedural fallbacks | `make cartoon` regenerates placeholders |
 | Signing | Hardened runtime, ad-hoc; notarize script ready | No Developer ID cert on this Mac |
 
 ### Model endpoints (pinned)
@@ -105,6 +105,8 @@ character mid-sentence.
 - [x] G8. "my message" echo pill above the composer
 - [x] G9. Return sends, Esc stops, Space PTT
 - [x] G11. Footer microphone switcher with the live input name
+- [x] G12. Cartoon medallion portraits (`cartoon.png` + `face.json`), jaw puppet
+  driven by playback level, layered/procedural fallbacks
 - [x] G10. Accessibility labels, contrast, keyboard paths
 
 ## 8. Phase H — Push-to-talk & live transcription
@@ -133,7 +135,7 @@ character mid-sentence.
 ## 10. Phase J — Packaging
 
 - [x] J1. `Packaging/build.sh` — Release build, nested signing, llama entitlements, verify
-- [x] J2. `Packaging/make-dmg.sh` — 15 MB DMG with Applications symlink
+- [x] J2. `Packaging/make-dmg.sh` — DMG with Applications symlink
 - [x] J3. `Packaging/notarize.sh` — one command with a Developer ID + notary profile
 - [x] J4. No weights in the app bundle; DMG mounts and launches
 - [x] J5. README with build, models, limits
@@ -161,4 +163,6 @@ character mid-sentence.
    Developer ID certificate.
 4. **Ears engine** installs Python/MLX via `uv` (uses an existing `uv`, else a pinned 14 MB
    binary). ~456 MB on disk; torch/sympy/networkx are removed after install.
-5. **Procedural portraits** — a drop-in slot is ready for illustrated art.
+5. **Character art** — the cartoon medallion set is live; the checked-in images
+   are generated placeholders. The jaw is a 2.5D puppet, not phoneme-accurate
+   lip-sync; replace the art or move to a rigged runtime for final quality.

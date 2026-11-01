@@ -38,6 +38,7 @@ final class ConversationModel: ObservableObject {
     @Published var isListening = false
     @Published var busyLoading = false
     @Published var micLevel: Float = 0
+    @Published var suggestedInputUID: String?
 
     private var responseTask: Task<Void, Never>?
     private var startTask: Task<Void, Never>?
@@ -316,6 +317,7 @@ final class ConversationModel: ObservableObject {
         }
 
         finalizeTask?.cancel()
+        suggestedInputUID = nil
         isListening = true
         pressedAt = Date()
         phase = .listening
@@ -325,11 +327,6 @@ final class ConversationModel: ObservableObject {
         didFinalize = false
 
         startTask = Task { [weak self] in await self?.beginListening() }
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
-            guard let self, self.isListening, self.sessionPeak < 0.01 else { return }
-            self.hint = "No microphone signal from this input. Try another one from the microphone menu."
-        }
     }
 
     /// Capture starts before the ear server is ready. Audio is buffered and flushed once the
@@ -357,6 +354,10 @@ final class ConversationModel: ObservableObject {
                     }
                     if level > self.sessionPeak { self.sessionPeak = level }
                     self.micLevel = level
+                    if level > 0.02, self.suggestedInputUID != nil {
+                        self.hint = nil
+                        self.suggestedInputUID = nil
+                    }
                     if self.transcriber.isConnected {
                         self.transcriber.append(data)
                     } else if self.pendingPCM.count < 16_000 * 2 * 30 {
@@ -436,6 +437,14 @@ final class ConversationModel: ObservableObject {
         DebugLog.write("finish transcript chars=\(text.count) peak=\(sessionPeak)")
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if clean.isEmpty {
+            if sessionPeak < 0.01 {
+                let name = prefs.inputDeviceUID.isEmpty
+                    ? "the system default input"
+                    : (AudioDevices.name(for: prefs.inputDeviceUID) ?? "this input")
+                hint = "No signal from \(name)."
+                suggestedInputUID = Self.suggestedAlternative(to: prefs.inputDeviceUID)
+                DebugLog.write("silent hold peak=\(sessionPeak) uid=\(prefs.inputDeviceUID)")
+            }
             if phase == .listening { phase = .idle }
             return
         }
@@ -448,6 +457,7 @@ final class ConversationModel: ObservableObject {
             startTask = nil
             finalizeTask?.cancel()
             finalizeTask = nil
+                suggestedInputUID = nil
             isListening = false
             pendingPCM = Data()
             capture.stop()
@@ -467,12 +477,31 @@ final class ConversationModel: ObservableObject {
         startTask = nil
         finalizeTask?.cancel()
         finalizeTask = nil
+        suggestedInputUID = nil
         pendingPCM = Data()
         didFinalize = false
         micLevel = 0
         capture.stop()
         transcriber.cancel()
         if phase == .listening { phase = .idle }
+    }
+
+    func useSuggestedInput() {
+        guard let uid = suggestedInputUID else { return }
+        prefs.inputDeviceUID = uid
+        suggestedInputUID = nil
+        hint = "Input switched to \(AudioDevices.name(for: uid) ?? "the new microphone"). Hold Space again."
+        DebugLog.write("input fallback uid=\(uid)")
+    }
+
+    private static func suggestedAlternative(to uid: String) -> String? {
+        let inputs = AudioDevices.inputs()
+        if let builtIn = inputs.first(where: {
+            $0.id == "BuiltInMicrophoneDevice" || $0.name.localizedCaseInsensitiveContains("MacBook")
+        }), builtIn.id != uid {
+            return builtIn.id
+        }
+        return inputs.first(where: { $0.id != uid })?.id
     }
 
     private static func rms(_ data: Data) -> Float {

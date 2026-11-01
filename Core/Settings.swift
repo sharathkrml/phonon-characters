@@ -17,6 +17,11 @@ final class Preferences: ObservableObject {
         autoSpeak = defaults.object(forKey: "autoSpeak") as? Bool ?? true
         onboarded = defaults.bool(forKey: "onboarded")
         selectedCharacterID = defaults.string(forKey: "selectedCharacterID") ?? Persona.all[0].id
-        inputDeviceUID = defaults.string(forKey: "inputDeviceUID") ?? ""
+        if defaults.object(forKey: "inputDeviceUID") != nil {
+            inputDeviceUID = defaults.string(forKey: "inputDeviceUID") ?? ""
+        } else {
+            // Prefer the built-in mic: docks, webcams and virtual drivers are often silent.
+            inputDeviceUID = AudioDevices.builtInUID ?? ""
+        }
     }
 }

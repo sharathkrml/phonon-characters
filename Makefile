@@ -5,7 +5,7 @@ LOGS := $(HOME)/Library/Application Support/PhononCharacters/Logs
 
 .DEFAULT_GOAL := help
 
-.PHONY: help project build dmg run debug clean notarize logs models
+.PHONY: help project build dmg run debug clean notarize logs models art cartoon check-art
 
 help: ## Show this list
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-9s %s\n", $$1, $$2}'
@@ -37,6 +37,15 @@ models: ## Show what is installed and how much space it uses
 		"$(HOME)/Library/Application Support/PhononCharacters/Ears" \
 		"$(HOME)/.cache/fermion/speech" 2>/dev/null || true
 	@df -h "$(HOME)" | tail -1
+
+check-art: ## Verify every character has a cartoon or layered set
+	./scripts/check-art.sh
+
+art: ## Regenerate the flat layered placeholders
+	python3 scripts/make-placeholder-art.py
+
+cartoon: ## Generate missing cartoon medallion portraits (slow, free endpoint)
+	python3 scripts/make-cartoon-art.py $(if $(FORCE),--force,)
 
 notarize: ## Notarize the built DMG (needs a Developer ID + NOTARY_PROFILE)
 	./Packaging/notarize.sh

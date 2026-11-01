@@ -22,6 +22,12 @@ enum AudioDevices {
         }
     }
 
+    static var builtInUID: String? {
+        inputs().first {
+            $0.id == "BuiltInMicrophoneDevice" || $0.name.localizedCaseInsensitiveContains("MacBook")
+        }?.id
+    }
+
     static func name(for uid: String) -> String? {
         inputs().first { $0.id == uid }?.name
     }

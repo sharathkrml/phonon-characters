@@ -21,16 +21,18 @@ struct SettingsView: View {
             }
 
             Section("Microphone") {
-                Picker("Input", selection: $prefs.inputDeviceUID) {
-                    Text("System default").tag("")
+                VStack(alignment: .leading, spacing: 2) {
+                    inputRow(uid: "", name: "System default")
                     ForEach(devices) { device in
-                        Text(device.isDefault ? "\(device.name) (default)" : device.name)
-                            .tag(device.id)
+                        inputRow(
+                            uid: device.id,
+                            name: device.isDefault ? "\(device.name) (system default)" : device.name
+                        )
                     }
                 }
                 .onAppear { devices = AudioDevices.inputs() }
 
-                Text("Used when you hold Space. A change applies on the next hold. The same list is in the footer of the stage.")
+                Text("Used when you hold Space. A change applies on the next hold. The footer button on the stage cycles the same list.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
@@ -60,6 +62,25 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 560, height: 640)
         .preferredColorScheme(.light)
+    }
+
+    private func inputRow(uid: String, name: String) -> some View {
+        Button {
+            prefs.inputDeviceUID = uid
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: prefs.inputDeviceUID == uid ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 13))
+                    .foregroundStyle(prefs.inputDeviceUID == uid ? Theme.ink.opacity(0.8) : Theme.inkSoft.opacity(0.45))
+                Text(name)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.ink.opacity(0.85))
+                Spacer(minLength: 8)
+            }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func credit(_ title: String, _ detail: String) -> some View {

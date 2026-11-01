@@ -2,7 +2,7 @@
 
 A macOS character stage. Twelve Gradium character voices, a local LFM3 1.7B brain, and
 Phonon-2.5 English live speech recognition. Everything runs on the machine; models download
-on first launch, the `.dmg` carries code only.
+on first launch, the `.dmg` carries code and placeholder portraits.
 
 ![stage](main-page.png)
 
@@ -36,10 +36,15 @@ Model weights are never bundled.
 | Ears | Phonon-2.5 English (Fermion, MLX) | `fermion serve`, live WebSocket |
 
 - TTS streams 80 ms chunks; a reply starts speaking on its first sentence.
+- Portraits are AI cartoon medallions (`Resources/Characters/<id>/cartoon.png` +
+  `face.json`) with layered and procedural fallbacks; the jaw follows playback
+  level. `make check-art` verifies the sets.
 - Holding **Space** interrupts the character, records, and shows a live transcript
   (partials roughly every 0.5 s) before sending on release.
 - `←` / `→` change character, `Esc` stops speech, `Return` sends.
-- The footer microphone menu (repeated in Settings) picks the input used by push-to-talk.
+- The footer microphone button cycles the input used by push-to-talk; Settings lists them all.
+- If a hold captures no audio, the app says which input was silent and offers to switch to the
+  built-in microphone in one click.
 
 ## First launch
 
@@ -56,6 +61,8 @@ Logs: `~/Library/Application Support/PhononCharacters/Logs`.
 - arm64 only: the Phonon Core ML core is compiled for Apple silicon.
 - Ad-hoc signed builds require right-click → Open the first time. Notarize for a clean open.
 - The ears engine needs `uv` or downloads a pinned static `uv` on first install.
+- Character portraits are generated placeholders; replace `Resources/Characters/<id>/cartoon.png`
+  with final art (see `Resources/Characters/README.md`).
 - The default input may be a USB or virtual device with no signal. Pick the built-in
   microphone from the footer menu; the app also detects a silent input and says so.
 
