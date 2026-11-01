@@ -1,0 +1,126 @@
+import Foundation
+
+enum BrainClient {
+    struct Message: Codable {
+        let role: String
+        let content: String
+    }
+
+    enum BrainError: LocalizedError {
+        case http(Int, String)
+
+        var errorDescription: String? {
+            switch self {
+            case .http(let code, let body): "The brain answered HTTP \(code). \(body)"
+            }
+        }
+    }
+
+    static func stream(port: Int, messages: [Message], maxTokens: Int = 160) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    guard let url = URL(string: "http://127.0.0.1:\(port)/v1/chat/completions") else {
+                        throw URLError(.badURL)
+                    }
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "POST"
+                    request.timeoutInterval = 120
+                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    let body: [String: Any] = [
+                        "model": "local",
+                        "messages": messages.map { ["role": $0.role, "content": $0.content] },
+                        "stream": true,
+                        "temperature": 0.85,
+                        "top_p": 0.95,
+                        "max_tokens": maxTokens,
+                        // LFM3 thinks before answering unless told not to. We want the spoken line.
+                        "chat_template_kwargs": ["enable_thinking": false],
+                    ]
+                    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                    guard let http = response as? HTTPURLResponse else {
+                        throw URLError(.badServerResponse)
+                    }
+                    guard http.statusCode == 200 else {
+                        var text = ""
+                        for try await line in bytes.lines {
+                            text += line
+                            if text.count > 400 { break }
+                        }
+                        throw BrainError.http(http.statusCode, text)
+                    }
+
+                    for try await line in bytes.lines {
+                        try Task.checkCancellation()
+                        guard line.hasPrefix("data:") else { continue }
+                        let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                        if payload == "[DONE]" { break }
+                        guard let data = payload.data(using: .utf8),
+                              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                              let choices = json["choices"] as? [[String: Any]],
+                              let delta = choices.first?["delta"] as? [String: Any],
+                              let token = delta["content"] as? String
+                        else { continue }
+                        continuation.yield(token)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+}
+
+enum PersonaPrompt {
+    static func messages(for character: Persona, history: [(String, String)]) -> [BrainClient.Message] {
+        let rules = """
+        Stay fully in character. Answer in at most two short sentences that sound good spoken \
+        aloud. Stop when the thought is complete. Never use markdown, bullet points, lists, \
+        emoji, asterisks or stage directions. Never mention that you are an AI or a model.
+        """
+        var list = [BrainClient.Message(role: "system", content: "\(character.persona)\n\n\(rules)")]
+        for (role, text) in history.suffix(10) {
+            list.append(.init(role: role, content: text))
+        }
+        return list
+    }
+}
+
+/// Splits a token stream into speakable sentences without losing text.
+enum SentenceSplitter {
+    static func take(_ buffer: inout String) -> String? {
+        let terminators: Set<Character> = [".", "!", "?", "…", "\n"]
+        var index = buffer.startIndex
+        var lastBoundary: String.Index?
+        while index < buffer.endIndex {
+            let character = buffer[index]
+            if terminators.contains(character) {
+                var next = buffer.index(after: index)
+                while next < buffer.endIndex, buffer[next] == " " || buffer[next] == "\"" || buffer[next] == "'" {
+                    next = buffer.index(after: next)
+                }
+                let sentence = buffer[buffer.startIndex..<next]
+                if sentence.trimmingCharacters(in: .whitespacesAndNewlines).count >= 12 {
+                    lastBoundary = next
+                }
+            }
+            index = buffer.index(after: index)
+        }
+        guard let boundary = lastBoundary else { return nil }
+        let sentence = String(buffer[buffer.startIndex..<boundary])
+        buffer.removeSubrange(buffer.startIndex..<boundary)
+        let cleaned = sanitize(sentence)
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
+    static func sanitize(_ text: String) -> String {
+        text.replacingOccurrences(of: "*", with: "")
+            .replacingOccurrences(of: "#", with: "")
+            .replacingOccurrences(of: "`", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
