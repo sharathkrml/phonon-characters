@@ -33,6 +33,9 @@ final class EarsEngine: ObservableObject {
     private var installTask: Task<Void, Never>?
     private var startup: Task<Void, Error>?
 
+    /// Keeps live engines reachable so app termination can shut them down.
+    private static var live: [EarsEngine] = []
+
     private var root: URL { AppPaths.support.appendingPathComponent("Ears", isDirectory: true) }
     private var venv: URL { root.appendingPathComponent("venv", isDirectory: true) }
     private var fermion: URL { venv.appendingPathComponent("bin/fermion") }
@@ -45,6 +48,11 @@ final class EarsEngine: ObservableObject {
 
     init() {
         refresh()
+        Self.live.append(self)
+    }
+
+    static func stopAll() {
+        for engine in live { engine.stop() }
     }
 
     func refresh() {

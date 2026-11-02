@@ -74,6 +74,7 @@ private struct RootStage: View {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated { EarsEngine.stopAll() }
         LlamaServerRegistry.stopAll()
     }
 
