@@ -90,6 +90,50 @@ enum PersonaPrompt {
     }
 }
 
+/// Drops `think` blocks from a token stream, including when a tag is split across tokens.
+struct ThinkingFilter {
+    private var buffer = ""
+    private var inside = false
+
+    mutating func feed(_ token: String) -> String {
+        buffer += token
+        var out = ""
+        while true {
+            let tag = inside ? "</think" : "<think"
+            guard let range = buffer.range(of: tag) else {
+                let keep = Self.holdback(buffer, tag: tag)
+                if !inside { out.append(contentsOf: buffer.dropLast(keep)) }
+                buffer = String(buffer.suffix(keep))
+                return out
+            }
+            if !inside { out.append(contentsOf: buffer[..<range.lowerBound]) }
+            guard let end = buffer[range.upperBound...].firstIndex(of: ">") else {
+                buffer = String(buffer[range.lowerBound...])
+                return out
+            }
+            buffer = String(buffer[buffer.index(after: end)...])
+            inside.toggle()
+        }
+    }
+
+    /// Whatever is left once the stream ends. Text inside an unclosed block is dropped.
+    mutating func finish() -> String {
+        let rest = inside ? "" : buffer
+        buffer = ""
+        inside = false
+        return rest
+    }
+
+    /// Length of a trailing fragment that could still grow into `tag`.
+    private static func holdback(_ text: String, tag: String) -> Int {
+        for length in stride(from: min(tag.count - 1, text.count), through: 1, by: -1)
+        where text.hasSuffix(tag.prefix(length)) {
+            return length
+        }
+        return 0
+    }
+}
+
 /// Splits a token stream into speakable sentences without losing text.
 enum SentenceSplitter {
     static func take(_ buffer: inout String) -> String? {

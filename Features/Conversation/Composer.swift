@@ -25,10 +25,16 @@ struct Composer: View {
             .padding(.horizontal, 6)
 
             HStack(spacing: 12) {
-                if model.isListening {
-                    listening
-                } else {
+                // Both stay mounted: swapping an AppKit-backed TextField/ScrollView in and out
+                // leaves a stale NSViewResponder that crashes hit-testing on macOS 27.
+                ZStack(alignment: .leading) {
                     field
+                        .opacity(model.isListening ? 0 : 1)
+                        .disabled(model.isListening)
+                        .allowsHitTesting(!model.isListening)
+                    listening
+                        .opacity(model.isListening ? 1 : 0)
+                        .allowsHitTesting(model.isListening)
                 }
                 trailing
             }
@@ -50,6 +56,9 @@ struct Composer: View {
             )
         }
         .animation(.easeOut(duration: 0.18), value: model.isListening)
+        .onChange(of: model.isListening) { _, listening in
+            focused = !listening
+        }
         .onAppear {
             DispatchQueue.main.async { focused = true }
         }
@@ -86,7 +95,11 @@ struct Composer: View {
 
     private var listening: some View {
         HStack(spacing: 10) {
-            Waveform(level: model.micLevel, tint: model.character.palette.aura)
+            if model.isListening {
+                Waveform(level: model.micLevel, tint: model.character.palette.aura)
+            } else {
+                Color.clear.frame(width: 24, height: 24)
+            }
             ScrollView(.horizontal) {
                 HStack(spacing: 0) {
                     if model.transcriber.committed.isEmpty && model.transcriber.current.isEmpty {
@@ -112,31 +125,26 @@ struct Composer: View {
 
     @ViewBuilder
     private var trailing: some View {
-        if model.isListening {
-            HoldMicButton(active: true, onPress: {}, onRelease: model.endPushToTalk)
-                .accessibilityLabel("Release to send")
-        } else {
-            HStack(spacing: 8) {
-                HoldMicButton(
-                    active: false,
-                    onPress: model.beginPushToTalk,
-                    onRelease: model.endPushToTalk
-                )
-                .accessibilityLabel("Hold to talk")
-                .help(model.ears.engineInstalled ? "Hold to talk (or hold Space)" : "Install Ears to talk")
+        HStack(spacing: 8) {
+            HoldMicButton(
+                active: model.isListening,
+                onPress: model.beginPushToTalk,
+                onRelease: model.endPushToTalk
+            )
+            .accessibilityLabel(model.isListening ? "Release to send" : "Hold to talk")
+            .help(model.ears.engineInstalled ? "Hold to talk (or hold Space)" : "Install Ears to talk")
 
-                if canSend {
-                    Button(action: submit) {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(Theme.paper)
-                            .frame(width: 32, height: 32)
-                            .background(Circle().fill(model.character.palette.ink))
-                    }
-                    .buttonStyle(.plain)
-                    .keyboardShortcut(.return, modifiers: [])
-                    .help("Send")
+            if canSend && !model.isListening {
+                Button(action: submit) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Theme.paper)
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(model.character.palette.ink))
                 }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.return, modifiers: [])
+                .help("Send")
             }
         }
     }

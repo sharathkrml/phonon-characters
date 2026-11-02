@@ -215,17 +215,20 @@ final class ConversationModel: ObservableObject {
             let prompt = PersonaPrompt.messages(for: char, history: history)
 
             var buffer = ""
+            var think = ThinkingFilter()
             for try await token in BrainClient.stream(port: brain.port, messages: prompt) {
                 try Task.checkCancellation()
-                update(charID: char.id, messageID: replyID) { $0.text += token }
-                buffer += token
+                let visible = think.feed(token)
+                guard !visible.isEmpty else { continue }
+                update(charID: char.id, messageID: replyID) { $0.text += visible }
+                buffer += visible
                 while let sentence = SentenceSplitter.take(&buffer) {
                     try Task.checkCancellation()
                     try await speak(sentence, char: char)
                 }
             }
 
-            let tail = SentenceSplitter.sanitize(buffer)
+            let tail = SentenceSplitter.sanitize(buffer + think.finish())
             if !tail.isEmpty {
                 try await speak(tail, char: char)
             }
