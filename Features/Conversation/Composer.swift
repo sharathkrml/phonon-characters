@@ -12,15 +12,15 @@ struct Composer: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 8) {
-                Text("Your message")
+                Text(model.isListening ? "Listening" : "Your message")
                     .font(Theme.body(10.5, weight: .semibold))
                     .tracking(1.3)
                     .textCase(.uppercase)
-                    .foregroundStyle(Theme.inkSoft.opacity(0.7))
+                    .foregroundStyle(Theme.inkSoft)
                 Spacer()
-                Text(model.ears.engineInstalled ? "Space to talk" : "Ears not installed")
+                Text(hintText)
                     .font(Theme.body(10.5))
-                    .foregroundStyle(Theme.inkSoft.opacity(0.6))
+                    .foregroundStyle(Theme.inkSoft)
             }
             .padding(.horizontal, 6)
 
@@ -35,18 +35,18 @@ struct Composer: View {
             .padding(.horizontal, 16)
             .frame(height: 58)
             .background(
-                RoundedRectangle(cornerRadius: 19, style: .continuous)
-                    .fill(Theme.paper.opacity(model.isListening ? 0.98 : 0.92))
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Theme.paper.opacity(model.isListening ? 0.98 : 0.96))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 19, style: .continuous)
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .strokeBorder(
                                 model.isListening
                                     ? model.character.palette.accent.opacity(0.7)
-                                    : Theme.ink.opacity(focused ? 0.28 : 0.14),
+                                    : Theme.ink.opacity(focused ? 0.45 : 0.22),
                                 lineWidth: model.isListening ? 1.6 : 1
                             )
                     )
-                    .shadow(color: .black.opacity(0.04), radius: 12, y: 5)
+                    .shadow(color: .black.opacity(0.05), radius: 12, y: 5)
             )
         }
         .animation(.easeOut(duration: 0.18), value: model.isListening)
@@ -60,11 +60,12 @@ struct Composer: View {
             "",
             text: $draft,
             prompt: Text(prompt)
-                .foregroundColor(Theme.inkSoft.opacity(0.65))
+                .foregroundColor(Theme.inkSoft)
         )
         .textFieldStyle(.plain)
         .font(Theme.body(14.5))
         .foregroundStyle(Theme.ink)
+        .tint(model.character.palette.ink)
         .focused($focused)
         .onSubmit(submit)
         .accessibilityLabel("Message to \(model.character.name)")
@@ -75,6 +76,13 @@ struct Composer: View {
     }
 
     private var firstName: String { model.character.shortName }
+
+    private var hintText: String {
+        if model.isListening { return "Release to send" }
+        let hasDraft = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if hasDraft { return canSend ? "Return to send" : "Reply in progress" }
+        return model.ears.engineInstalled ? "Space to talk" : "Ears not installed"
+    }
 
     private var listening: some View {
         HStack(spacing: 10) {
@@ -107,25 +115,29 @@ struct Composer: View {
         if model.isListening {
             HoldMicButton(active: true, onPress: {}, onRelease: model.endPushToTalk)
                 .accessibilityLabel("Release to send")
-        } else if canSend {
-            Button(action: submit) {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Theme.paper)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(model.character.palette.ink))
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.return, modifiers: [])
-            .help("Send")
         } else {
-            HoldMicButton(
-                active: false,
-                onPress: model.beginPushToTalk,
-                onRelease: model.endPushToTalk
-            )
-            .accessibilityLabel("Hold to talk")
-            .help(model.ears.engineInstalled ? "Hold to talk (or hold Space)" : "Install Ears to talk")
+            HStack(spacing: 8) {
+                HoldMicButton(
+                    active: false,
+                    onPress: model.beginPushToTalk,
+                    onRelease: model.endPushToTalk
+                )
+                .accessibilityLabel("Hold to talk")
+                .help(model.ears.engineInstalled ? "Hold to talk (or hold Space)" : "Install Ears to talk")
+
+                if canSend {
+                    Button(action: submit) {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Theme.paper)
+                            .frame(width: 32, height: 32)
+                            .background(Circle().fill(model.character.palette.ink))
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.return, modifiers: [])
+                    .help("Send")
+                }
+            }
         }
     }
 

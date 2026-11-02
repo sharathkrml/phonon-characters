@@ -6,7 +6,7 @@ character mid-sentence.
 
 - **Target:** macOS 15+, arm64 only (Phonon's Core ML core is arm64).
 - **Hardware:** MacBook Pro M1 Pro / 16 GB. Measured peak well under budget.
-- **Distribution:** `.dmg` with code and placeholder portraits (~25 MB). Weights and the optional ear runtime download
+- **Distribution:** `.dmg` with code only (~25 MB). Weights and the optional ear runtime download
   on first launch.
 - **App:** `Phonon Characters`, `com.sharath.phononcharacters`.
 
@@ -22,7 +22,7 @@ character mid-sentence.
 | Brain | `LFM3-1.7B-Q4_K_M.gguf` (1.05 GB) via `llama serve` | LFM3 reference; 83–85 tok/s on this M1 Pro |
 | Ears | `Phonon-2.5-English` (158 MB) via Fermion engine | User request; 4.82 % WER, MLX, streaming |
 | Live STT | `ws://…/v1/audio/stream`, PCM16 frames | Partials ~0.5 s while speaking |
-| Portraits | AI cartoon medallions (`cartoon.png` + `face.json`), layered/procedural fallbacks | `make cartoon` regenerates placeholders |
+| Characters | 2D ink drawing in code (`InkFace` + `CharacterLook`), mouth driven by the spoken text | no art assets, matches the paper/ink stage, lips follow words |
 | Signing | Hardened runtime, ad-hoc; notarize script ready | No Developer ID cert on this Mac |
 
 ### Model endpoints (pinned)
@@ -105,8 +105,11 @@ character mid-sentence.
 - [x] G8. "my message" echo pill above the composer
 - [x] G9. Return sends, Esc stops, Space PTT
 - [x] G11. Footer microphone switcher with the live input name
-- [x] G12. Cartoon medallion portraits (`cartoon.png` + `face.json`), jaw puppet
-  driven by playback level, layered/procedural fallbacks
+- [x] G12. Ink character rig: `InkFace` paths + 12 `CharacterLook` records (head,
+  hair, beard, accessory, ears, shoulders); `MouthTrack` shapes the mouth from the
+  reply text, advanced on voiced playback frames
+- [x] G13. Stage scenes: `CharacterScene` + `SceneLayer` draw a per-character backdrop,
+  prop, motes and wind behind the face; idle motion, voice-reactive breeze, reduced-motion still
 - [x] G10. Accessibility labels, contrast, keyboard paths
 
 ## 8. Phase H — Push-to-talk & live transcription
@@ -152,6 +155,11 @@ character mid-sentence.
 - [x] K8. Measured: brain 83–85 tok/s, 1.14 GB RSS, prompt 127 tok/s; app footprint 95 MB; TTS streams; ear partials ~0.5 s
 - [x] K9. Quit leaves no orphan `llama`/`fermion`
 - [x] K10. DMG built, mounted, app copied out and launched
+- [x] K11. Ink stage: all 12 characters render from `CharacterLook`; mouth shapes
+  (closed, open, wide, tongue) verified offscreen and driven by `MouthTrack` on
+  voiced frames; `#if DEBUG` asserts every persona has a look
+- [x] K12. All 12 stage scenes render offscreen (`CharacterScene`); backdrops, props and
+  motes sit behind the bust without crowding it; reduced motion is a still composition
 
 ---
 
@@ -163,6 +171,6 @@ character mid-sentence.
    Developer ID certificate.
 4. **Ears engine** installs Python/MLX via `uv` (uses an existing `uv`, else a pinned 14 MB
    binary). ~456 MB on disk; torch/sympy/networkx are removed after install.
-5. **Character art** — the cartoon medallion set is live; the checked-in images
-   are generated placeholders. The jaw is a 2.5D puppet, not phoneme-accurate
-   lip-sync; replace the art or move to a rigged runtime for final quality.
+5. **Character art** — the cast is drawn, not painted: 12 `CharacterLook` records
+   over one ink renderer. The mouth is letter-to-shape, not phoneme-accurate lip-sync;
+   a real phonemizer or a rigged 3D runtime is the upgrade path.

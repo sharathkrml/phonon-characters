@@ -10,55 +10,34 @@ struct StageView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let portraitSide = min(geo.size.width * 0.44, max(280, geo.size.height - 370), 470)
+            let contentWidth = min(geo.size.width, 1180)
+            let portraitSide = min(contentWidth * 0.44, max(280, geo.size.height - 370), 470)
 
             ZStack {
                 PaperBackground(tint: character.palette.paper)
-                    .animation(.easeInOut(duration: 0.5), value: character.id)
 
                 VStack(spacing: 0) {
                     header
-                    portrait(side: portraitSide)
-                    Spacer(minLength: 0)
-                }
-                .padding(.top, 22)
+                    portraitStage(side: portraitSide)
+                    Spacer(minLength: 16)
 
-                chevrons
-
-                VStack(spacing: 10) {
-                    Spacer(minLength: 0)
-                    banner
-                    if let echo = model.lastUserMessage, !model.isListening {
-                        HStack {
-                            Spacer()
-                            Text(echo)
-                                .font(Theme.body(12))
-                                .foregroundStyle(Theme.ink.opacity(0.78))
-                                .lineLimit(2)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(
-                                    Capsule()
-                                        .fill(Theme.paper.opacity(0.85))
-                                        .overlay(Capsule().strokeBorder(Theme.ink.opacity(0.10), lineWidth: 1))
-                                )
+                    VStack(spacing: 10) {
+                        banner
+                        HStack(alignment: .bottom, spacing: 24) {
+                            ReplyCard(model: model)
+                            Composer(model: model, draft: $draft)
+                                .frame(width: 420)
                         }
-                        .frame(maxWidth: .infinity, alignment: .trailing)
                         .padding(.horizontal, 30)
-                        .padding(.bottom, 2)
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
-                    HStack(alignment: .bottom, spacing: 22) {
-                        ReplyCard(model: model)
-                            .frame(maxWidth: 520)
-                        Spacer(minLength: 18)
-                        Composer(model: model, draft: $draft)
-                            .frame(width: 400)
-                    }
-                    .padding(.horizontal, 30)
+
+                    Spacer(minLength: 12)
                     footer
                 }
+                .frame(width: contentWidth)
+                .padding(.top, 22)
                 .padding(.bottom, 16)
+                .frame(maxWidth: .infinity)
             }
         }
         .onAppear { model.activate() }
@@ -78,38 +57,39 @@ struct StageView: View {
                 .font(Theme.body(12.5, weight: .medium))
                 .tracking(1.2)
                 .textCase(.uppercase)
-                .foregroundStyle(Theme.inkSoft.opacity(0.85))
+                .foregroundStyle(Theme.inkSoft)
         }
         .padding(.top, 6)
     }
 
-    private func portrait(side: CGFloat) -> some View {
-        PortraitView(
-            character: character,
-            level: model.isListening ? model.micLevel : model.phonon.level,
-            listening: model.isListening,
-            speaking: model.isSpeaking
-        )
-        .id(character.id)
-        .transition(.asymmetric(
-            insertion: .move(edge: .trailing).combined(with: .opacity),
-            removal: .move(edge: .leading).combined(with: .opacity)
-        ))
-        .frame(width: side, height: side)
-        .padding(.top, 2)
-        .allowsHitTesting(false)
-    }
+    private func portraitStage(side: CGFloat) -> some View {
+        ZStack {
+            PortraitView(
+                character: character,
+                level: model.isListening ? model.micLevel : model.phonon.level,
+                mouth: model.phonon.mouth,
+                listening: model.isListening,
+                speaking: model.isSpeaking
+            )
+            .id(character.id)
+            .transition(.asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .move(edge: .leading).combined(with: .opacity)
+            ))
+            .frame(width: side, height: side)
+            .allowsHitTesting(false)
 
-    private var chevrons: some View {
-        HStack {
-            ChevronButton(direction: .left) { model.step(-1) }
-                .accessibilityLabel("Previous character")
-            Spacer()
-            ChevronButton(direction: .right) { model.step(1) }
-                .accessibilityLabel("Next character")
+            HStack {
+                ChevronButton(direction: .left) { model.step(-1) }
+                    .accessibilityLabel("Previous character")
+                Spacer()
+                ChevronButton(direction: .right) { model.step(1) }
+                    .accessibilityLabel("Next character")
+            }
+            .frame(width: side + 140, height: 46)
         }
-        .padding(.horizontal, 34)
-        .offset(y: -30)
+        .frame(width: side + 140, height: side)
+        .padding(.top, 2)
     }
 
     @ViewBuilder
@@ -138,18 +118,26 @@ struct StageView: View {
 
     private var footer: some View {
         HStack(spacing: 10) {
-            Text(model.isListening
-                 ? "Release to send · Esc to cancel"
-                 : "Hold Space to talk · ← → change character · Esc stops speech")
+            Text(footerHint)
                 .font(Theme.body(11))
-                .foregroundStyle(Theme.inkSoft.opacity(0.8))
+                .foregroundStyle(Theme.inkSoft)
             Spacer()
             MicPicker()
             Text("On-device · private")
                 .font(Theme.body(11, weight: .medium))
-                .foregroundStyle(Theme.inkSoft.opacity(0.65))
+                .foregroundStyle(Theme.inkSoft)
         }
-        .padding(.horizontal, 34)
+        .padding(.horizontal, 30)
+    }
+
+    private var footerHint: String {
+        if model.isListening {
+            return "Release to send · Esc to cancel"
+        }
+        if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return model.isBusy ? "Reply in progress · Esc stops speech" : "Return to send · Esc stops speech"
+        }
+        return "Hold Space to talk · ← → change character · Esc stops speech"
     }
 }
 
@@ -158,26 +146,22 @@ private struct ChevronButton: View {
 
     let direction: Direction
     let action: () -> Void
-    @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
             ZStack {
                 Circle()
-                    .fill(Theme.paper.opacity(hovering ? 0.95 : 0.65))
-                    .overlay(Circle().strokeBorder(Theme.ink.opacity(hovering ? 0.5 : 0.25), lineWidth: 1.2))
-                    .shadow(color: .black.opacity(hovering ? 0.08 : 0.03), radius: 8, y: 3)
+                    .fill(Theme.paper.opacity(0.65))
+                    .overlay(Circle().strokeBorder(Theme.ink.opacity(0.25), lineWidth: 1.2))
+                    .shadow(color: .black.opacity(0.03), radius: 8, y: 3)
                 Image(systemName: direction == .left ? "chevron.left" : "chevron.right")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Theme.ink.opacity(0.75))
                     .offset(x: direction == .left ? -1 : 1)
             }
             .frame(width: 46, height: 46)
-            .scaleEffect(hovering ? 1.06 : 1)
         }
         .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .animation(.spring(response: 0.28, dampingFraction: 0.72), value: hovering)
     }
 }
 
@@ -210,12 +194,12 @@ private struct Banner: View {
             Circle().fill(tint).frame(width: 7, height: 7)
             Text(text)
                 .font(Theme.body(12))
-                .foregroundStyle(Theme.ink.opacity(0.85))
+                .foregroundStyle(Theme.ink.opacity(0.9))
                 .lineLimit(2)
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
                     .font(Theme.body(11.5, weight: .semibold))
-                    .foregroundStyle(tint)
+                    .foregroundStyle(Theme.ink)
                     .buttonStyle(.plain)
             }
             if dismissible {

@@ -34,13 +34,18 @@ struct Persona: Identifiable, Equatable {
     /// What the composer calls them: "Silas", "Snow Queen", "Thing".
     var shortName: String {
         switch id {
-        case "thing": "Thing"
-        case "snowqueen": "Snow Queen"
-        case "godmother": "Godmother"
+        case "thing": return "Thing"
+        case "snowqueen": return "Snow Queen"
+        case "godmother": return "Godmother"
         default:
-            name.split(separator: " ").first.map(String.init) ?? name
+            let words = name.split(separator: " ").map(String.init)
+            let result = words.first { !Self.honorifics.contains($0.lowercased()) } ?? name
+            assert(!Self.honorifics.contains(result.lowercased()), "shortName is still a title: \(name)")
+            return result
         }
     }
+
+    private static let honorifics: Set<String> = ["sir", "captain", "old", "master", "lady", "lord"]
 
     static let all: [Persona] = [
         Persona(

@@ -7,6 +7,14 @@ struct PhononCharactersApp: App {
     @StateObject private var ears = EarsEngine()
     @StateObject private var prefs = Preferences.shared
 
+    init() {
+        #if DEBUG
+        MouthTrack.selfCheck()
+        CharacterLook.selfCheck()
+        CharacterScene.selfCheck()
+        #endif
+    }
+
     var body: some Scene {
         WindowGroup("Phonon Characters") {
             ZStack {

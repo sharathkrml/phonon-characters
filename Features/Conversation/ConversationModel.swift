@@ -231,6 +231,7 @@ final class ConversationModel: ObservableObject {
             }
             update(charID: char.id, messageID: replyID) { $0.streaming = false }
             await waitForAudio()
+            phonon.finishSpeaking()
             if phase != .listening { phase = .idle }
         } catch is CancellationError {
             update(charID: char.id, messageID: replyID) { $0.streaming = false }
@@ -255,6 +256,7 @@ final class ConversationModel: ObservableObject {
                 noteAudio(stats: stats, started: started)
             }
             await waitForAudio()
+            phonon.finishSpeaking()
             if phase == .speaking { phase = .idle }
         } catch {
             errorText = error.localizedDescription

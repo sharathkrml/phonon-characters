@@ -59,11 +59,14 @@ final class PhononService: ObservableObject {
     @Published private(set) var isLoaded = false
     @Published private(set) var isLoading = false
     @Published private(set) var level: Float = 0
+    @Published private(set) var mouth = MouthShape.closed
     @Published private(set) var currentVoice = ""
     @Published private(set) var loadNote: String?
 
     private var phonon: Phonon?
     private var player: VoicePlayer?
+    private var track: MouthTrack?
+    private var lastTick = Date()
 
     func loadIfNeeded() async throws {
         if isLoaded { return }
@@ -84,6 +87,7 @@ final class PhononService: ObservableObject {
                 guard let self else { return }
                 let smoothed = max(value, self.level * 0.55)
                 self.level = smoothed < 0.02 ? 0 : smoothed
+                self.advanceMouth(voiced: smoothed > 0.05)
             }
         }
         self.phonon = loaded
@@ -106,6 +110,8 @@ final class PhononService: ObservableObject {
         let phonon = try await ready()
         try await setVoice(voice)
         guard let player else { return nil }
+        track = MouthTrack(text: trimmed)
+        lastTick = Date()
         return try await phonon.speak(trimmed) { chunk in
             player.enqueue(chunk)
         }
@@ -114,6 +120,14 @@ final class PhononService: ObservableObject {
     func stop() {
         player?.stop()
         level = 0
+        track = nil
+        mouth = .closed
+    }
+
+    /// Playback ended on its own; the audio tap stops with it, so close the lips here.
+    func finishSpeaking() {
+        track = nil
+        mouth = .closed
     }
 
     func unload() {
@@ -122,6 +136,21 @@ final class PhononService: ObservableObject {
         player = nil
         isLoaded = false
         currentVoice = ""
+    }
+
+    /// Lips follow the words, but only while there is audio to hear: the reply text is known
+    /// long before playback catches up, so voiced frames are the clock.
+    private func advanceMouth(voiced: Bool) {
+        guard var track else {
+            mouth = .closed
+            return
+        }
+        let now = Date()
+        let dt = min(now.timeIntervalSince(lastTick), 0.1)
+        lastTick = now
+        let shape = track.advance(voiced: voiced, dt: dt)
+        self.track = track
+        mouth = mouth.mixed(shape, 0.55)
     }
 
     private func ready() async throws -> Phonon {
