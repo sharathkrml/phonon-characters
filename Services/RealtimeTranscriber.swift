@@ -66,10 +66,13 @@ final class RealtimeTranscriber: ObservableObject {
         }
 
         let deadline = Date().addingTimeInterval(6)
-        while !done, Date() < deadline, isConnected {
+        // A new hold supersedes this one: stop waiting instead of spinning on the cancelled
+        // task for six seconds, and leave the socket the new hold now owns open.
+        while !done, Date() < deadline, isConnected, self.socket === socket {
+            if Task.isCancelled { break }
             try? await Task.sleep(nanoseconds: 50_000_000)
         }
-        close()
+        if self.socket === socket { close() }
         return text
     }
 

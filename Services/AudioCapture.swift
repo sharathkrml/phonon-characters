@@ -31,21 +31,20 @@ enum MicPermission {
     }
 }
 
-/// Microphone tap converted to mono PCM16 at the rate the ASR model expects.
-final class AudioCapture: @unchecked Sendable {
-    // Start/stop are serialized on `queue`; the tap reads immutable format fields.
-    // A fresh engine per hold: reusing one after stop + a device switch can leave a stale
-    // tap/format and kill the process on the second hold.
-    private var engine: AVAudioEngine?
-    /// Start/stop run here so a slow audio device cannot block the main thread.
+/// Microphone capture as mono PCM16 at the rate the ASR model expects.
+///
+/// AVAudioEngine is not used here on purpose: its input node locks onto the *system default*
+/// device's format, and switching to a mic with another sample rate fails to start with
+/// com.apple.coreaudio.avfaudio -10868 (format not supported). AVCaptureSession selects the
+/// device per app and resamples to `audioSettings` for us.
+final class AudioCapture: NSObject, @unchecked Sendable {
     private let queue = DispatchQueue(label: "phonon.capture")
-    private var converter: AVAudioConverter?
-    /// The format the current converter was built from. The device can change between holds.
-    private var converterFormat: AVAudioFormat?
-    private let converterLock = NSLock()
-    private var targetFormat: AVAudioFormat?
-    private var running = false
+    private var session: AVCaptureSession?
     private var onPCM: ((Data) -> Void)?
+    private var sampleRate: Double = 16_000
+    /// nil until the first buffer proves the delivered format is what the ASR stream expects.
+    private var formatOK: Bool?
+    private var running = false
 
     func start(sampleRate: Double, deviceUID: String = "", onPCM: @escaping (Data) -> Void) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -62,62 +61,48 @@ final class AudioCapture: @unchecked Sendable {
 
     private func startNow(sampleRate: Double, deviceUID: String, onPCM: @escaping (Data) -> Void) throws {
         guard !running else { return }
-        self.onPCM = onPCM
-
-        engine?.stop()
-        let engine = AVAudioEngine()
-        self.engine = engine
-
-        let input = engine.inputNode
+        guard let device = Self.device(forUID: deviceUID) else {
+            throw AudioCaptureError.noInput
+        }
         if let volume = AudioDevices.inputVolume(forUID: deviceUID), volume < 0.25 {
             let target: Float = 0.9
             if AudioDevices.setInputVolume(target, forUID: deviceUID) {
                 DebugLog.write("input volume raised \(volume) -> \(target) uid=\(deviceUID)")
             }
         }
-        if !deviceUID.isEmpty, let deviceID = AudioDevices.deviceID(forUID: deviceUID) {
-            do {
-                try input.auAudioUnit.setDeviceID(deviceID)
-                DebugLog.write("select input uid=\(deviceUID) device=\(deviceID)")
-            } catch {
-                DebugLog.write("select input failed uid=\(deviceUID): \(error.localizedDescription)")
-            }
-        }
 
-        let format = input.outputFormat(forBus: 0)
-        guard format.sampleRate > 0, format.channelCount > 0 else {
+        let session = AVCaptureSession()
+        let input = try AVCaptureDeviceInput(device: device)
+        let output = AVCaptureAudioDataOutput()
+        output.audioSettings = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: sampleRate,
+            AVNumberOfChannelsKey: 1,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false,
+        ]
+        output.setSampleBufferDelegate(self, queue: queue)
+
+        guard session.canAddInput(input), session.canAddOutput(output) else {
             throw AudioCaptureError.noInput
         }
-        guard let target = AVAudioFormat(
-            commonFormat: .pcmFormatInt16,
-            sampleRate: sampleRate,
-            channels: 1,
-            interleaved: true
-        ), AVAudioConverter(from: format, to: target) != nil else {
-            throw AudioCaptureError.converter
-        }
+        session.addInput(input)
+        session.addOutput(output)
 
-        self.targetFormat = target
-        converterLock.lock()
-        converter = nil
-        converterFormat = nil
-        converterLock.unlock()
-        DebugLog.write("capture format \(format.sampleRate)Hz \(format.channelCount)ch")
-
-        // Install without a format: the node's own format can change after a device switch,
-        // and passing a stale one is what raised the Objective-C exception and aborted.
-        input.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, _ in
-            self?.process(buffer)
-        }
-        engine.prepare()
-        do {
-            try engine.start()
-        } catch {
-            input.removeTap(onBus: 0)
-            self.engine = nil
-            throw error
+        self.sampleRate = sampleRate
+        self.onPCM = onPCM
+        self.formatOK = nil
+        self.session = session
+        session.startRunning()
+        guard session.isRunning else {
+            self.session = nil
+            self.onPCM = nil
+            throw AudioCaptureError.noInput
         }
         running = true
+        DebugLog.write("capture device=\(device.uniqueID) rate=\(sampleRate)")
         DebugLog.write("audio capture started")
     }
 
@@ -126,66 +111,65 @@ final class AudioCapture: @unchecked Sendable {
         queue.async { [weak self] in
             guard let self, self.running else { return }
             self.running = false
-            self.engine?.inputNode.removeTap(onBus: 0)
-            self.engine?.stop()
-            self.engine = nil
-            self.converterLock.lock()
-            self.converter = nil
-            self.converterFormat = nil
-            self.converterLock.unlock()
             self.onPCM = nil
+            self.formatOK = nil
+            self.session?.stopRunning()
+            self.session = nil
         }
     }
 
-    private func process(_ buffer: AVAudioPCMBuffer) {
-        guard running, let targetFormat else { return }
-
-        let inputFormat = buffer.format
-        converterLock.lock()
-        if converter == nil
-            || converterFormat?.sampleRate != inputFormat.sampleRate
-            || converterFormat?.channelCount != inputFormat.channelCount {
-            converter = AVAudioConverter(from: inputFormat, to: targetFormat)
-            converterFormat = inputFormat
+    private static func device(forUID uid: String) -> AVCaptureDevice? {
+        if !uid.isEmpty {
+            if let device = AVCaptureDevice(uniqueID: uid) { return device }
+            DebugLog.write("saved input missing uid=\(uid); using system default")
         }
-        let converter = converter
-        converterLock.unlock()
-        guard let converter else { return }
+        return AVCaptureDevice.default(for: .audio)
+    }
+}
 
-        let ratio = targetFormat.sampleRate / inputFormat.sampleRate
-        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
-        guard let output = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else { return }
+extension AudioCapture: AVCaptureAudioDataOutputSampleBufferDelegate {
+    func captureOutput(
+        _ output: AVCaptureOutput,
+        didOutput sampleBuffer: CMSampleBuffer,
+        from connection: AVCaptureConnection
+    ) {
+        guard running, let onPCM else { return }
 
-        var supplied = false
-        var conversionError: NSError?
-        let status = converter.convert(to: output, error: &conversionError) { _, outStatus in
-            if supplied {
-                outStatus.pointee = .noDataNow
-                return nil
-            }
-            supplied = true
-            outStatus.pointee = .haveData
-            return buffer
+        if formatOK == nil {
+            let format = CMSampleBufferGetFormatDescription(sampleBuffer)
+                .flatMap { CMAudioFormatDescriptionGetStreamBasicDescription($0)?.pointee }
+            formatOK = format.map {
+                $0.mSampleRate == sampleRate && $0.mChannelsPerFrame == 1 && $0.mBitsPerChannel == 16
+            } ?? false
+            DebugLog.write(
+                "capture format \(format?.mSampleRate ?? 0)Hz \(format?.mChannelsPerFrame ?? 0)ch "
+                    + "\(format?.mBitsPerChannel ?? 0)bit ok=\(formatOK == true)"
+            )
         }
+        // Never feed the transcriber a format it was not configured for.
+        guard formatOK == true else { return }
 
-        guard status != .error,
-              output.frameLength > 0,
-              let samples = output.int16ChannelData?[0]
-        else { return }
+        guard let block = CMSampleBufferGetDataBuffer(sampleBuffer) else { return }
+        var length = 0
+        var pointer: UnsafeMutablePointer<Int8>?
+        guard CMBlockBufferGetDataPointer(
+            block,
+            atOffset: 0,
+            lengthAtOffsetOut: nil,
+            totalLengthOut: &length,
+            dataPointerOut: &pointer
+        ) == noErr, let pointer, length > 0 else { return }
 
-        let data = Data(bytes: samples, count: Int(output.frameLength) * MemoryLayout<Int16>.size)
-        onPCM?(data)
+        onPCM(Data(bytes: pointer, count: length))
     }
 }
 
 enum AudioCaptureError: LocalizedError {
     case noInput
-    case converter
 
     var errorDescription: String? {
         switch self {
         case .noInput: "No microphone input was found."
-        case .converter: "Could not prepare the microphone audio."
         }
     }
 }
