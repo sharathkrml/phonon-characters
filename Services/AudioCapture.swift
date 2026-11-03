@@ -40,8 +40,10 @@ final class AudioCapture: @unchecked Sendable {
     /// Start/stop run here so a slow audio device cannot block the main thread.
     private let queue = DispatchQueue(label: "phonon.capture")
     private var converter: AVAudioConverter?
+    /// The format the current converter was built from. The device can change between holds.
+    private var converterFormat: AVAudioFormat?
+    private let converterLock = NSLock()
     private var targetFormat: AVAudioFormat?
-    private var inputFormat: AVAudioFormat?
     private var running = false
     private var onPCM: ((Data) -> Void)?
 
@@ -91,15 +93,20 @@ final class AudioCapture: @unchecked Sendable {
             sampleRate: sampleRate,
             channels: 1,
             interleaved: true
-        ), let converter = AVAudioConverter(from: format, to: target) else {
+        ), AVAudioConverter(from: format, to: target) != nil else {
             throw AudioCaptureError.converter
         }
 
-        self.inputFormat = format
         self.targetFormat = target
-        self.converter = converter
+        converterLock.lock()
+        converter = nil
+        converterFormat = nil
+        converterLock.unlock()
+        DebugLog.write("capture format \(format.sampleRate)Hz \(format.channelCount)ch")
 
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+        // Install without a format: the node's own format can change after a device switch,
+        // and passing a stale one is what raised the Objective-C exception and aborted.
+        input.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, _ in
             self?.process(buffer)
         }
         engine.prepare()
@@ -122,16 +129,28 @@ final class AudioCapture: @unchecked Sendable {
             self.engine?.inputNode.removeTap(onBus: 0)
             self.engine?.stop()
             self.engine = nil
+            self.converterLock.lock()
             self.converter = nil
+            self.converterFormat = nil
+            self.converterLock.unlock()
             self.onPCM = nil
         }
     }
 
     private func process(_ buffer: AVAudioPCMBuffer) {
-        guard running,
-              let converter,
-              let targetFormat,
-              let inputFormat else { return }
+        guard running, let targetFormat else { return }
+
+        let inputFormat = buffer.format
+        converterLock.lock()
+        if converter == nil
+            || converterFormat?.sampleRate != inputFormat.sampleRate
+            || converterFormat?.channelCount != inputFormat.channelCount {
+            converter = AVAudioConverter(from: inputFormat, to: targetFormat)
+            converterFormat = inputFormat
+        }
+        let converter = converter
+        converterLock.unlock()
+        guard let converter else { return }
 
         let ratio = targetFormat.sampleRate / inputFormat.sampleRate
         let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
