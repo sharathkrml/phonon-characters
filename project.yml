@@ -36,6 +36,13 @@ targets:
       - path: Resources/llama
         type: folder
         buildPhase: resources
+      - path: Resources/Characters
+        type: folder
+        buildPhase: resources
+      - path: Resources/AppIcon.icns
+        buildPhase: resources
+      - path: Resources/LogoMark.png
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sharath.phononcharacters

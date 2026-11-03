@@ -7,20 +7,26 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0404EE3039B9D2D35A931150 /* RosterRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 297518DE05287A732F7EBF85 /* RosterRail.swift */; };
 		0599CC680E1B0542DB3B6883 /* SceneLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF894CF0E9F293C056A69CED /* SceneLayer.swift */; };
 		0F60D8BC61565A7907C76AB8 /* MicPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0A188A3380A11299512439 /* MicPicker.swift */; };
 		229E4EE55B48B433703DEEE6 /* ModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 984C7B99F148481EE7AA95AF /* ModelCatalog.swift */; };
 		2339857C6FAF584A199E9BC9 /* llama in Resources */ = {isa = PBXBuildFile; fileRef = F6C05C40C71E57BA1B35A26A /* llama */; };
 		2661CC09A5470B2EC053A7CB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211619853FD06325028BB0A4 /* SettingsView.swift */; };
 		307E121267770DC9BC82C99B /* BrainClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B50FDF0C09319E5C574496 /* BrainClient.swift */; };
+		3249C908C5B4F58B6B12D8D0 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 92CB567FD1A2E6017DCEE5F6 /* AppIcon.icns */; };
 		32D4FC04A5AB642E93D2775A /* Mouth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7215A346B6DB4ADB596465 /* Mouth.swift */; };
 		34C61A4F82CEDA14D1038AC2 /* PhononCharactersApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2053E5539312E155BF71F34 /* PhononCharactersApp.swift */; };
 		375F10100ACB4F347B65F8F8 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DB231EC3F05E620397FDA23 /* Settings.swift */; };
+		3B57D4B0476E5857A7563F09 /* PortraitImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8375E100B68B39AE2AC008F4 /* PortraitImage.swift */; };
+		3DC9584210A82DC58A4173C2 /* PortraitArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90949504DEFC11669096663D /* PortraitArt.swift */; };
 		3DEC5453B946C0153F385C96 /* AppPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FE872180E32C5EAFE91A39 /* AppPaths.swift */; };
 		4266E39A480C5E2500433E01 /* PortraitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3341D7D3C4D5834A11BF7EF1 /* PortraitView.swift */; };
 		43754E977E791E523CB09DAC /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20823D8FD16B3D8A8CB5FBF2 /* Theme.swift */; };
 		4FB8B00642C6B7ABD46FF234 /* EarsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C04F678FA744ADD1DC39C7E /* EarsRow.swift */; };
+		5373C300D4D2434913301020 /* LogoMark.png in Resources */ = {isa = PBXBuildFile; fileRef = 12445F1215C9D990B2B7F4C5 /* LogoMark.png */; };
 		6C659D94091111D46F65E787 /* DebugLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDA387E2D19EB3E968F9E2E3 /* DebugLog.swift */; };
+		7323D10196605F8C09D34755 /* Characters in Resources */ = {isa = PBXBuildFile; fileRef = 54DE7BF7C8CD3AE37201542E /* Characters */; };
 		7655A8543B824C29CCC4BD34 /* CharacterScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = B177CB4A239C6D9A9025387E /* CharacterScene.swift */; };
 		79600157300A71766EC2410C /* InkFace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 730E718D074BE91BA919A0FE /* InkFace.swift */; };
 		80CFC0019AFC4BD9793D91E3 /* StageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C706CFB8B0D3F0982A3B8756 /* StageView.swift */; };
@@ -37,6 +43,7 @@
 		D1B90A8DC523C89FBCC820D7 /* Composer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FC0CCA0E4D4158E58579EDA /* Composer.swift */; };
 		DC96ADEEB6A0FAF0A7A6A15C /* ModelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 297559F0E0BC30332C7C0178 /* ModelStore.swift */; };
 		DCEFAFDE2476AA9ADBA9394A /* ptts in Frameworks */ = {isa = PBXBuildFile; productRef = 30B16D6A68607931F4C88780 /* ptts */; };
+		EF78DA82C1DA65CC341EA8D0 /* StageChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19B0E2B1B7DFAFA356704505 /* StageChrome.swift */; };
 		F098C7AB981296A46591E4AE /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00496BB1ABC54628AA6CEF74 /* OnboardingView.swift */; };
 		F99E57B05F9A87A6C7C517C6 /* PhononService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB12C3A5392CB8BD55F4D43 /* PhononService.swift */; };
 		FB2AB1EB21204548936C67CE /* ModelRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C3625A5098AD6140FF8E3A6 /* ModelRow.swift */; };
@@ -45,22 +52,29 @@
 
 /* Begin PBXFileReference section */
 		00496BB1ABC54628AA6CEF74 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		12445F1215C9D990B2B7F4C5 /* LogoMark.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = LogoMark.png; sourceTree = "<group>"; };
 		12B50FDF0C09319E5C574496 /* BrainClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrainClient.swift; sourceTree = "<group>"; };
+		19B0E2B1B7DFAFA356704505 /* StageChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageChrome.swift; sourceTree = "<group>"; };
 		20823D8FD16B3D8A8CB5FBF2 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		211619853FD06325028BB0A4 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		297518DE05287A732F7EBF85 /* RosterRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterRail.swift; sourceTree = "<group>"; };
 		297559F0E0BC30332C7C0178 /* ModelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelStore.swift; sourceTree = "<group>"; };
 		2D6AABBD79FD169BE97BBE2F /* Persona.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persona.swift; sourceTree = "<group>"; };
 		2FC0CCA0E4D4158E58579EDA /* Composer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Composer.swift; sourceTree = "<group>"; };
 		3341D7D3C4D5834A11BF7EF1 /* PortraitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortraitView.swift; sourceTree = "<group>"; };
 		3C04F678FA744ADD1DC39C7E /* EarsRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarsRow.swift; sourceTree = "<group>"; };
 		4937D854E53C2BA7EB15BD9D /* KeyMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyMonitor.swift; sourceTree = "<group>"; };
+		54DE7BF7C8CD3AE37201542E /* Characters */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Characters; path = Resources/Characters; sourceTree = SOURCE_ROOT; };
 		5DB231EC3F05E620397FDA23 /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
 		5E7215A346B6DB4ADB596465 /* Mouth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mouth.swift; sourceTree = "<group>"; };
 		61E1B3BB6BC819916097FAF5 /* RealtimeTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeTranscriber.swift; sourceTree = "<group>"; };
 		730E718D074BE91BA919A0FE /* InkFace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InkFace.swift; sourceTree = "<group>"; };
 		780715F01EC6A85B5E455CA7 /* AudioCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCapture.swift; sourceTree = "<group>"; };
 		7A0A188A3380A11299512439 /* MicPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicPicker.swift; sourceTree = "<group>"; };
+		8375E100B68B39AE2AC008F4 /* PortraitImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortraitImage.swift; sourceTree = "<group>"; };
 		8E8963686667EDD3F9F9C709 /* ReplyCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplyCard.swift; sourceTree = "<group>"; };
+		90949504DEFC11669096663D /* PortraitArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortraitArt.swift; sourceTree = "<group>"; };
+		92CB567FD1A2E6017DCEE5F6 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		984C7B99F148481EE7AA95AF /* ModelCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelCatalog.swift; sourceTree = "<group>"; };
 		9C3625A5098AD6140FF8E3A6 /* ModelRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelRow.swift; sourceTree = "<group>"; };
 		AAE84C143504FA154407916D /* PhononCharacters.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhononCharacters.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -97,8 +111,11 @@
 			children = (
 				730E718D074BE91BA919A0FE /* InkFace.swift */,
 				7A0A188A3380A11299512439 /* MicPicker.swift */,
+				8375E100B68B39AE2AC008F4 /* PortraitImage.swift */,
 				3341D7D3C4D5834A11BF7EF1 /* PortraitView.swift */,
+				297518DE05287A732F7EBF85 /* RosterRail.swift */,
 				BF894CF0E9F293C056A69CED /* SceneLayer.swift */,
+				19B0E2B1B7DFAFA356704505 /* StageChrome.swift */,
 				C706CFB8B0D3F0982A3B8756 /* StageView.swift */,
 			);
 			path = Stage;
@@ -137,6 +154,7 @@
 				5E7215A346B6DB4ADB596465 /* Mouth.swift */,
 				D62F5E96991E9AE9D189864A /* Net.swift */,
 				2D6AABBD79FD169BE97BBE2F /* Persona.swift */,
+				90949504DEFC11669096663D /* PortraitArt.swift */,
 				5DB231EC3F05E620397FDA23 /* Settings.swift */,
 				20823D8FD16B3D8A8CB5FBF2 /* Theme.swift */,
 			);
@@ -207,7 +225,10 @@
 		FAA357BE1CC59F3566E7BAB9 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				92CB567FD1A2E6017DCEE5F6 /* AppIcon.icns */,
+				54DE7BF7C8CD3AE37201542E /* Characters */,
 				F6C05C40C71E57BA1B35A26A /* llama */,
+				12445F1215C9D990B2B7F4C5 /* LogoMark.png */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -276,6 +297,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3249C908C5B4F58B6B12D8D0 /* AppIcon.icns in Resources */,
+				7323D10196605F8C09D34755 /* Characters in Resources */,
+				5373C300D4D2434913301020 /* LogoMark.png in Resources */,
 				2339857C6FAF584A199E9BC9 /* llama in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -311,12 +335,16 @@
 				8E70179A44CDD4811DB80EC3 /* Persona.swift in Sources */,
 				34C61A4F82CEDA14D1038AC2 /* PhononCharactersApp.swift in Sources */,
 				F99E57B05F9A87A6C7C517C6 /* PhononService.swift in Sources */,
+				3DC9584210A82DC58A4173C2 /* PortraitArt.swift in Sources */,
+				3B57D4B0476E5857A7563F09 /* PortraitImage.swift in Sources */,
 				4266E39A480C5E2500433E01 /* PortraitView.swift in Sources */,
 				C83D91EE9FA3F61C67948C61 /* RealtimeTranscriber.swift in Sources */,
 				8158259B977655FA1EA419D5 /* ReplyCard.swift in Sources */,
+				0404EE3039B9D2D35A931150 /* RosterRail.swift in Sources */,
 				0599CC680E1B0542DB3B6883 /* SceneLayer.swift in Sources */,
 				375F10100ACB4F347B65F8F8 /* Settings.swift in Sources */,
 				2661CC09A5470B2EC053A7CB /* SettingsView.swift in Sources */,
+				EF78DA82C1DA65CC341EA8D0 /* StageChrome.swift in Sources */,
 				80CFC0019AFC4BD9793D91E3 /* StageView.swift in Sources */,
 				43754E977E791E523CB09DAC /* Theme.swift in Sources */,
 			);

@@ -5,9 +5,11 @@ struct OnboardingView: View {
     @ObservedObject var ears: EarsEngine
     @ObservedObject var prefs = Preferences.shared
 
+    private let palette = CharacterPalette.make(0x1B1526, 0x4B3A78, 0xCBB26A)
+
     var body: some View {
         ZStack {
-            PaperBackground()
+            StageBackdrop(palette: palette)
 
             HStack(alignment: .center, spacing: 54) {
                 introduction
@@ -25,14 +27,16 @@ struct OnboardingView: View {
     private var introduction: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Phonon\nCharacters")
-                .font(Theme.display(54))
+                .font(Theme.title(54))
                 .lineSpacing(-2)
-                .foregroundStyle(Theme.ink)
+                .foregroundStyle(Theme.parchment)
 
             Text("Twelve voices with something to say. All of it happens on this Mac.")
                 .font(Theme.display(17))
                 .lineSpacing(5)
-                .foregroundStyle(Theme.inkSoft)
+                .foregroundStyle(Theme.parchment.opacity(0.72))
+
+            cast
 
             VStack(alignment: .leading, spacing: 12) {
                 feature("waveform", "Twelve character voices, straight from Phonon.")
@@ -46,21 +50,51 @@ struct OnboardingView: View {
                 Image(systemName: "internaldrive")
                 Text("\(AppPaths.megabytes(AppPaths.freeBytes())) free on this Mac")
             }
-            .font(Theme.body(11.5))
-            .foregroundStyle(Theme.inkSoft.opacity(0.8))
+            .font(Theme.label(11.5))
+            .foregroundStyle(Theme.parchment.opacity(0.5))
             .padding(.top, 6)
         }
+    }
+
+    private var cast: some View {
+        HStack(spacing: 7) {
+            ForEach(Persona.all.prefix(6)) { character in
+                ZStack {
+                    Circle().fill(character.palette.ink)
+                    if let thumb = PortraitArt.thumbnail(character.id, size: 32) {
+                        Image(nsImage: thumb)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Image(systemName: character.emblem.symbol)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(character.palette.accent)
+                    }
+                }
+                .frame(width: 34, height: 34)
+                .clipShape(Circle())
+                .overlay(Circle().strokeBorder(Theme.gilt.opacity(0.7), lineWidth: 1))
+                .help(character.name)
+            }
+
+            Text("+6")
+                .font(Theme.label(10, weight: .semibold))
+                .foregroundStyle(Theme.parchment.opacity(0.5))
+                .padding(.leading, 3)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Twelve characters")
     }
 
     private func feature(_ symbol: String, _ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.ink.opacity(0.7))
+                .foregroundStyle(Theme.giltLight)
                 .frame(width: 18)
             Text(text)
                 .font(Theme.body(13))
-                .foregroundStyle(Theme.ink.opacity(0.82))
+                .foregroundStyle(Theme.parchment.opacity(0.82))
         }
     }
 
@@ -68,7 +102,7 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Set up your voices")
-                    .font(Theme.display(22))
+                    .font(Theme.title(22))
                     .foregroundStyle(Theme.ink)
                 Text("Download once. They stay on disk and work offline.")
                     .font(Theme.body(12))
@@ -78,19 +112,19 @@ struct OnboardingView: View {
             VStack(spacing: 4) {
                 ForEach(ModelCatalog.all) { package in
                     ModelRow(package: package, models: models)
-                    InkRule(opacity: 0.08)
+                    Rectangle().fill(Theme.gilt.opacity(0.3)).frame(height: 1)
                 }
                 EarsRow(ears: ears)
             }
 
-            InkRule(opacity: 0.10)
+            Rectangle().fill(Theme.gilt.opacity(0.45)).frame(height: 1)
 
             Button {
                 prefs.onboarded = true
             } label: {
                 HStack {
                     Text(models.coreReady ? "Enter the stage" : "Download the voice and brain to continue")
-                        .font(Theme.body(13, weight: .semibold))
+                        .font(Theme.label(13, weight: .bold))
                     Spacer()
                     if models.coreReady {
                         Image(systemName: "arrow.right")
@@ -98,30 +132,30 @@ struct OnboardingView: View {
                         ProgressView().controlSize(.small)
                     }
                 }
-                .foregroundStyle(models.coreReady ? Theme.paper : Theme.inkSoft)
+                .foregroundStyle(models.coreReady ? Theme.ink : Theme.inkSoft)
                 .padding(.horizontal, 18)
                 .frame(height: 46)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(models.coreReady ? Theme.ink : Theme.ink.opacity(0.06))
+                        .fill(
+                            models.coreReady
+                                ? AnyShapeStyle(Theme.gilt)
+                                : AnyShapeStyle(Theme.ink.opacity(0.06))
+                        )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Theme.ink.opacity(models.coreReady ? 0.18 : 0), lineWidth: 1)
                 )
             }
             .buttonStyle(.plain)
             .disabled(!models.coreReady)
 
             Text("Voice and brain are required. Ears are only for the microphone.")
-                .font(Theme.body(10.5))
+                .font(Theme.label(10.5))
                 .foregroundStyle(Theme.inkSoft.opacity(0.7))
         }
         .padding(26)
-        .background(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(Theme.paper.opacity(0.75))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 26, style: .continuous)
-                        .strokeBorder(Theme.ink.opacity(0.12), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.06), radius: 24, y: 10)
-        )
+        .plate(radius: 26)
     }
 }

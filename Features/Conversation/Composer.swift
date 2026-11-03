@@ -10,51 +10,38 @@ struct Composer: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 8) {
-                Text(model.isListening ? "Listening" : "Your message")
-                    .font(Theme.body(10.5, weight: .semibold))
-                    .tracking(1.3)
-                    .textCase(.uppercase)
-                    .foregroundStyle(Theme.inkSoft)
-                Spacer()
-                Text(hintText)
-                    .font(Theme.body(10.5))
-                    .foregroundStyle(Theme.inkSoft)
+        HStack(spacing: 10) {
+            // Both stay mounted: swapping an AppKit-backed TextField/ScrollView in and out
+            // leaves a stale NSViewResponder that crashes hit-testing on macOS 27.
+            ZStack(alignment: .leading) {
+                field
+                    .opacity(model.isListening ? 0 : 1)
+                    .disabled(model.isListening)
+                    .allowsHitTesting(!model.isListening)
+                listening
+                    .opacity(model.isListening ? 1 : 0)
+                    .allowsHitTesting(model.isListening)
             }
-            .padding(.horizontal, 6)
-
-            HStack(spacing: 12) {
-                // Both stay mounted: swapping an AppKit-backed TextField/ScrollView in and out
-                // leaves a stale NSViewResponder that crashes hit-testing on macOS 27.
-                ZStack(alignment: .leading) {
-                    field
-                        .opacity(model.isListening ? 0 : 1)
-                        .disabled(model.isListening)
-                        .allowsHitTesting(!model.isListening)
-                    listening
-                        .opacity(model.isListening ? 1 : 0)
-                        .allowsHitTesting(model.isListening)
-                }
-                trailing
-            }
-            .padding(.horizontal, 16)
-            .frame(height: 58)
+            .padding(.horizontal, 12)
+            .frame(height: 44)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Theme.paper.opacity(model.isListening ? 0.98 : 0.96))
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Theme.paper.opacity(0.7))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .strokeBorder(
                                 model.isListening
-                                    ? model.character.palette.accent.opacity(0.7)
-                                    : Theme.ink.opacity(focused ? 0.45 : 0.22),
+                                    ? model.character.palette.accent.opacity(0.85)
+                                    : Theme.ink.opacity(focused ? 0.35 : 0.14),
                                 lineWidth: model.isListening ? 1.6 : 1
                             )
                     )
-                    .shadow(color: .black.opacity(0.05), radius: 12, y: 5)
             )
+
+            trailing
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
         .animation(.easeOut(duration: 0.18), value: model.isListening)
         .onChange(of: model.isListening) { _, listening in
             focused = !listening
@@ -72,7 +59,7 @@ struct Composer: View {
                 .foregroundColor(Theme.inkSoft)
         )
         .textFieldStyle(.plain)
-        .font(Theme.body(14.5))
+        .font(Theme.body(14))
         .foregroundStyle(Theme.ink)
         .tint(model.character.palette.ink)
         .focused($focused)
@@ -86,13 +73,6 @@ struct Composer: View {
 
     private var firstName: String { model.character.shortName }
 
-    private var hintText: String {
-        if model.isListening { return "Release to send" }
-        let hasDraft = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if hasDraft { return canSend ? "Return to send" : "Reply in progress" }
-        return model.ears.engineInstalled ? "Space to talk" : "Ears not installed"
-    }
-
     private var listening: some View {
         HStack(spacing: 10) {
             if model.isListening {
@@ -100,24 +80,26 @@ struct Composer: View {
             } else {
                 Color.clear.frame(width: 24, height: 24)
             }
-            ScrollView(.horizontal) {
-                HStack(spacing: 0) {
-                    if model.transcriber.committed.isEmpty && model.transcriber.current.isEmpty {
-                        Text("Listening…")
-                            .font(Theme.body(14))
-                            .foregroundStyle(Theme.inkSoft.opacity(0.75))
-                    } else {
+
+            if model.transcriber.committed.isEmpty && model.transcriber.current.isEmpty {
+                Text("Listening…")
+                    .font(Theme.body(14))
+                    .foregroundStyle(Theme.inkSoft.opacity(0.75))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 0) {
                         Text(model.transcriber.committed.isEmpty ? "" : model.transcriber.committed + " ")
                             .foregroundStyle(Theme.ink)
                         Text(model.transcriber.current)
                             .foregroundStyle(Theme.ink.opacity(0.55))
                     }
+                    .font(Theme.body(14))
+                    .lineLimit(1)
                 }
-                .font(Theme.body(14))
-                .lineLimit(1)
+                .scrollIndicators(.never)
+                .defaultScrollAnchor(.trailing)
             }
-            .scrollIndicators(.never)
-            .defaultScrollAnchor(.trailing)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityLabel("Listening. \(model.transcriber.text)")
@@ -128,6 +110,8 @@ struct Composer: View {
         HStack(spacing: 8) {
             HoldMicButton(
                 active: model.isListening,
+                tint: model.character.palette.aura,
+                accent: model.character.palette.accent,
                 onPress: model.beginPushToTalk,
                 onRelease: model.endPushToTalk
             )
@@ -138,9 +122,13 @@ struct Composer: View {
                 Button(action: submit) {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Theme.paper)
-                        .frame(width: 32, height: 32)
-                        .background(Circle().fill(model.character.palette.ink))
+                        .foregroundStyle(Theme.ink)
+                        .frame(width: 34, height: 34)
+                        .background(
+                            Circle()
+                                .fill(Theme.gilt)
+                                .overlay(Circle().strokeBorder(Theme.ink.opacity(0.15), lineWidth: 0.8))
+                        )
                 }
                 .buttonStyle(.plain)
                 .keyboardShortcut(.return, modifiers: [])
@@ -159,6 +147,8 @@ struct Composer: View {
 
 private struct HoldMicButton: View {
     let active: Bool
+    let tint: Color
+    let accent: Color
     let onPress: () -> Void
     let onRelease: () -> Void
     @State private var pressing = false
@@ -166,11 +156,22 @@ private struct HoldMicButton: View {
     var body: some View {
         Image(systemName: active ? "waveform" : "mic.fill")
             .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(active ? Theme.paper : Theme.ink.opacity(0.8))
-            .frame(width: 32, height: 32)
+            .foregroundStyle(active ? Theme.ink : Theme.ink.opacity(0.8))
+            .frame(width: 34, height: 34)
             .background(
-                Circle().fill(active ? Theme.ink : Theme.ink.opacity(0.06))
+                Circle().fill(
+                    active
+                        ? AnyShapeStyle(LinearGradient(colors: [accent, tint], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        : AnyShapeStyle(Theme.ink.opacity(0.07))
+                )
             )
+            .overlay(
+                Circle().strokeBorder(
+                    active ? AnyShapeStyle(Theme.gilt) : AnyShapeStyle(Theme.ink.opacity(0.12)),
+                    lineWidth: 1
+                )
+            )
+            .shadow(color: active ? accent.opacity(0.45) : .clear, radius: 8)
             .contentShape(Circle())
             .onLongPressGesture(minimumDuration: 0.01, maximumDistance: .infinity) {
             } onPressingChanged: { isPressing in
@@ -196,10 +197,10 @@ private struct Waveform: View {
             HStack(alignment: .center, spacing: 2.5) {
                 ForEach(0..<4) { index in
                     let wobble = 0.5 + 0.5 * sin(time * 8 + Double(index) * 1.7)
-                    let height = 4 + CGFloat(max(level, 0.12)) * 18 * CGFloat(wobble)
+                    let height = 7 + CGFloat(max(level, 0.12)) * 16 * CGFloat(wobble)
                     Capsule()
                         .fill(tint.opacity(0.9))
-                        .frame(width: 2.5, height: height)
+                        .frame(width: 3, height: height)
                 }
             }
             .frame(width: 24, height: 24)

@@ -60,6 +60,9 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(PaperBackground())
+        .tint(Theme.giltDeep)
         .frame(width: 560, height: 640)
         .preferredColorScheme(.light)
     }

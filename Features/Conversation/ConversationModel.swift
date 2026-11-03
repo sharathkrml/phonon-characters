@@ -50,6 +50,7 @@ final class ConversationModel: ObservableObject {
     private var pressedAt: Date?
     private var audioEnd = Date.distantPast
     private var visited: Set<String> = []
+    private var lastGreetingIndex: [String: Int] = [:]
     private var started = false
     private var loggedAudio = false
     private var sessionPeak: Float = 0
@@ -80,6 +81,18 @@ final class ConversationModel: ObservableObject {
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.shutdown()
+            }
+        }
+
+        // A permission sheet or another app taking focus would swallow the space key-up,
+        // leaving the microphone open forever.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.endPushToTalk()
             }
         }
 
@@ -249,13 +262,14 @@ final class ConversationModel: ObservableObject {
         do {
             try await phonon.loadIfNeeded()
             try await phonon.setVoice(char.voice)
+            let greeting = nextGreeting(for: char)
             if messages(for: char.id).isEmpty {
-                append(Message(role: .assistant, text: char.greeting), to: char.id)
+                append(Message(role: .assistant, text: greeting), to: char.id)
             }
             guard prefs.autoSpeak else { return }
             phase = .speaking
             let started = Date()
-            if let stats = try await phonon.speak(char.greeting, voice: char.voice) {
+            if let stats = try await phonon.speak(greeting, voice: char.voice) {
                 noteAudio(stats: stats, started: started)
             }
             await waitForAudio()
@@ -265,6 +279,17 @@ final class ConversationModel: ObservableObject {
             errorText = error.localizedDescription
             if phase == .speaking { phase = .idle }
         }
+    }
+
+    private func nextGreeting(for char: Persona) -> String {
+        let lines = char.greetings
+        guard lines.count > 1 else { return lines.first ?? "" }
+        var index = Int.random(in: 0..<lines.count)
+        if index == lastGreetingIndex[char.id] {
+            index = (index + 1) % lines.count
+        }
+        lastGreetingIndex[char.id] = index
+        return lines[index]
     }
 
     private func speak(_ text: String, char: Persona) async throws {
@@ -349,7 +374,7 @@ final class ConversationModel: ObservableObject {
             try Task.checkCancellation()
 
             DebugLog.write("audio capture start rate=\(transcriber.sampleRate) input=\(prefs.inputDeviceUID)")
-            try capture.start(sampleRate: transcriber.sampleRate, deviceUID: prefs.inputDeviceUID) { [weak self] data in
+            try await capture.start(sampleRate: transcriber.sampleRate, deviceUID: prefs.inputDeviceUID) { [weak self] data in
                 let level = Self.rms(data)
                 Task { @MainActor [weak self] in
                     guard let self else { return }

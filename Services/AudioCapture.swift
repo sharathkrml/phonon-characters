@@ -32,15 +32,31 @@ enum MicPermission {
 }
 
 /// Microphone tap converted to mono PCM16 at the rate the ASR model expects.
-final class AudioCapture {
+final class AudioCapture: @unchecked Sendable {
+    // Start/stop are serialized on `queue`; the tap reads immutable format fields.
     private let engine = AVAudioEngine()
+    /// Start/stop run here so a slow audio device cannot block the main thread.
+    private let queue = DispatchQueue(label: "phonon.capture")
     private var converter: AVAudioConverter?
     private var targetFormat: AVAudioFormat?
     private var inputFormat: AVAudioFormat?
     private var running = false
     private var onPCM: ((Data) -> Void)?
 
-    func start(sampleRate: Double, deviceUID: String = "", onPCM: @escaping (Data) -> Void) throws {
+    func start(sampleRate: Double, deviceUID: String = "", onPCM: @escaping (Data) -> Void) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            queue.async {
+                do {
+                    try self.startNow(sampleRate: sampleRate, deviceUID: deviceUID, onPCM: onPCM)
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    private func startNow(sampleRate: Double, deviceUID: String, onPCM: @escaping (Data) -> Void) throws {
         guard !running else { return }
         self.onPCM = onPCM
 
@@ -81,15 +97,19 @@ final class AudioCapture {
         engine.prepare()
         try engine.start()
         running = true
+        DebugLog.write("audio capture started")
     }
 
+    /// Non-blocking: teardown is queued behind any in-flight start.
     func stop() {
-        guard running else { return }
-        running = false
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
-        converter = nil
-        onPCM = nil
+        queue.async { [weak self] in
+            guard let self, self.running else { return }
+            self.running = false
+            self.engine.inputNode.removeTap(onBus: 0)
+            self.engine.stop()
+            self.converter = nil
+            self.onPCM = nil
+        }
     }
 
     private func process(_ buffer: AVAudioPCMBuffer) {

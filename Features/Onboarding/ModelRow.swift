@@ -12,10 +12,11 @@ struct ModelRow: View {
             HStack(alignment: .center, spacing: 14) {
                 ZStack {
                     Circle()
-                        .fill(Theme.ink.opacity(0.05))
+                        .fill(Theme.parchment)
+                        .overlay(Circle().strokeBorder(Theme.gilt.opacity(0.7), lineWidth: 1.2))
                     Image(systemName: symbol)
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Theme.ink.opacity(0.75))
+                        .foregroundStyle(Theme.giltDeep)
                 }
                 .frame(width: 36, height: 36)
 
@@ -49,7 +50,7 @@ struct ModelRow: View {
                 VStack(alignment: .leading, spacing: 4) {
                     ProgressView(value: progress)
                         .progressViewStyle(.linear)
-                        .tint(Theme.ink.opacity(0.7))
+                        .tint(Theme.giltDeep)
                     HStack {
                         Text("\(AppPaths.megabytes(received)) of \(AppPaths.megabytes(total))")
                         Spacer()
@@ -113,11 +114,11 @@ struct ModelRow: View {
                 models.download(package.id)
             } label: {
                 Text(status.isFailed ? "Retry" : "Download")
-                    .font(Theme.body(11.5, weight: .semibold))
-                    .foregroundStyle(Theme.paper)
+                    .font(Theme.label(11.5, weight: .bold))
+                    .foregroundStyle(Theme.ink)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.ink.opacity(0.85)))
+                    .background(Capsule().fill(Theme.gilt))
             }
             .buttonStyle(.plain)
         }

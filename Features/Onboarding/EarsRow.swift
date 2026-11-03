@@ -8,10 +8,12 @@ struct EarsRow: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 14) {
                 ZStack {
-                    Circle().fill(Theme.ink.opacity(0.05))
+                    Circle()
+                        .fill(Theme.parchment)
+                        .overlay(Circle().strokeBorder(Theme.gilt.opacity(0.7), lineWidth: 1.2))
                     Image(systemName: "ear")
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Theme.ink.opacity(0.75))
+                        .foregroundStyle(Theme.giltDeep)
                 }
                 .frame(width: 36, height: 36)
 
@@ -63,11 +65,11 @@ struct EarsRow: View {
                 ears.install()
             } label: {
                 Text(ears.state.isFailed ? "Retry" : "Install")
-                    .font(Theme.body(11.5, weight: .semibold))
-                    .foregroundStyle(Theme.paper)
+                    .font(Theme.label(11.5, weight: .bold))
+                    .foregroundStyle(Theme.ink)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Capsule().fill(Theme.ink.opacity(0.85)))
+                    .background(Capsule().fill(Theme.gilt))
             }
             .buttonStyle(.plain)
 

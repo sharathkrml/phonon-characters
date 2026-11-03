@@ -22,8 +22,8 @@ struct MicPicker: View {
                     .opacity(0.55)
             }
             .frame(maxWidth: 220, alignment: .leading)
-            .font(Theme.body(11))
-            .foregroundStyle(isMissing ? Color(hex: 0xB4543A) : Theme.inkSoft)
+            .font(Theme.label(10.5))
+            .foregroundStyle(isMissing ? Theme.ember : Theme.parchment.opacity(0.6))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -85,7 +85,7 @@ struct MicPicker: View {
             .frame(height: listHeight)
         }
         .frame(width: 280)
-        .background(Theme.paper)
+        .background(Theme.parchment)
     }
 
     private var listHeight: CGFloat {
@@ -122,7 +122,7 @@ private struct MicRow: View {
             HStack(spacing: 8) {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 12))
-                    .foregroundStyle(selected ? Theme.ink.opacity(0.8) : Theme.inkSoft.opacity(0.45))
+                    .foregroundStyle(selected ? Theme.giltDeep : Theme.inkSoft.opacity(0.45))
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)

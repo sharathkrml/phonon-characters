@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The character on stage. One renderer now: ink paths in `InkFace`, framed by the aura,
-/// the emblem badge and the listening ring.
+/// The character on stage: a full-bleed painted portrait when one exists, the ink fallback
+/// otherwise. The image keeps its original composition; only the bottom edge fades into the page.
 struct PortraitView: View {
     let character: Persona
     let level: Float
@@ -21,39 +21,56 @@ struct PortraitView: View {
                 let breathe = reduceMotion ? 0 : sin(time * 0.85) * 0.006
 
                 ZStack {
-                    PortraitAura(
-                        palette: palette,
-                        side: side,
-                        pulse: CGFloat(level),
-                        breathe: breathe,
-                        time: time,
-                        reduceMotion: reduceMotion
-                    )
+                    if let art = PortraitArt.load(character.id) {
+                        PortraitImage(
+                            art: art,
+                            level: CGFloat(level),
+                            listening: listening,
+                            time: time,
+                            reduceMotion: reduceMotion
+                        )
+                        .shadow(color: palette.ink.opacity(0.55), radius: 28, y: 10)
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                    } else {
+                        // The procedural face is ink on paper, so it sits on a parchment halo
+                        // instead of the painted backdrop.
+                        Circle()
+                            .fill(RadialGradient(
+                                colors: [palette.paper, palette.paper.opacity(0.85), .clear],
+                                center: .center,
+                                startRadius: side * 0.05,
+                                endRadius: side * 0.5
+                            ))
+                            .frame(width: side, height: side)
 
-                    SceneLayer(
-                        scene: scene,
-                        palette: palette,
-                        level: CGFloat(level),
-                        time: time,
-                        reduceMotion: reduceMotion
-                    )
+                        PortraitAura(
+                            palette: palette,
+                            side: side,
+                            pulse: CGFloat(level),
+                            breathe: breathe,
+                            time: time,
+                            reduceMotion: reduceMotion
+                        )
 
-                    InkFace(
-                        look: CharacterLook.of(character.id),
-                        palette: palette,
-                        mouth: mouth,
-                        level: CGFloat(level),
-                        listening: listening,
-                        time: time,
-                        reduceMotion: reduceMotion,
-                        breeze: scene.breeze
-                    )
-                    .frame(width: side, height: side)
+                        SceneLayer(
+                            scene: scene,
+                            palette: palette,
+                            level: CGFloat(level),
+                            time: time,
+                            reduceMotion: reduceMotion
+                        )
 
-                    PortraitEmblem(symbol: character.emblem.symbol, side: side, palette: palette)
-
-                    if listening {
-                        ListeningRing(palette: palette, side: side, level: level)
+                        InkFace(
+                            look: CharacterLook.of(character.id),
+                            palette: palette,
+                            mouth: mouth,
+                            level: CGFloat(level),
+                            listening: listening,
+                            time: time,
+                            reduceMotion: reduceMotion,
+                            breeze: scene.breeze
+                        )
+                        .frame(width: side, height: side)
                     }
                 }
                 .frame(width: proxy.size.width, height: proxy.size.height)
@@ -63,27 +80,6 @@ struct PortraitView: View {
         .accessibilityElement()
         .accessibilityLabel("\(character.name). \(character.tagline).")
         .accessibilityValue(listening ? "Listening" : (speaking ? "Speaking" : "Idle"))
-    }
-}
-
-// MARK: - Shared pieces
-
-private struct PortraitEmblem: View {
-    let symbol: String
-    let side: CGFloat
-    let palette: CharacterPalette
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(palette.paper.opacity(0.95))
-                .overlay(Circle().strokeBorder(palette.ink.opacity(0.7), lineWidth: 1.5))
-            Image(systemName: symbol)
-                .font(.system(size: side * 0.052, weight: .medium))
-                .foregroundStyle(palette.ink)
-        }
-        .frame(width: side * 0.11, height: side * 0.11)
-        .offset(y: side * 0.33)
     }
 }
 
@@ -118,20 +114,6 @@ private struct PortraitAura: View {
                 .frame(width: side * 0.9, height: side * 0.9)
                 .rotationEffect(.degrees(reduceMotion ? 0 : time * 2.5))
         }
-    }
-}
-
-private struct ListeningRing: View {
-    let palette: CharacterPalette
-    let side: CGFloat
-    let level: Float
-
-    var body: some View {
-        Circle()
-            .strokeBorder(palette.accent, lineWidth: 2)
-            .frame(width: side * 0.78, height: side * 0.78)
-            .scaleEffect(0.96 + CGFloat(level) * 0.1)
-            .opacity(0.85)
     }
 }
 
