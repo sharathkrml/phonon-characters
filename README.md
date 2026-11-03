@@ -44,6 +44,13 @@ Model weights are never bundled.
   `Features/Stage/SceneLayer.swift`): a backdrop, one prop, drifting motes and wind,
   drawn from the same palette. The scenery moves while the character is idle and
   lifts with the voice; Reduce Motion freezes it.
+- Characters can change the weather. Each has two or three abilities of their own
+  (Silas calls a storm, the Snow Queen brings snow, Grub wakes the campfire), listed on
+  the rail at the right of the stage. Ask what they can do and they name their abilities
+  and give you a line to say, such as "Show me a storm." The brain makes a separate,
+  tool-calling request — `set_stage_effect` or `keep_stage_calm` — while the spoken reply
+  streams untouched. Rain, wind, thunder, fire and shimmer are synthesized in code, so no
+  audio is bundled. Effects fade after 30 s, and the rail triggers them by hand.
 - Holding **Space** interrupts the character, records, and shows a live transcript
   (partials roughly every 0.5 s) before sending on release.
 - `←` / `→` change character, `Esc` stops speech, `Return` sends.
@@ -69,8 +76,9 @@ Logs: `~/Library/Application Support/PhononCharacters/Logs`.
 - Character art is one bundled portrait per persona
   (`Resources/Characters/<id>/portrait.png`, 1504×1046, transparent background)
   with a procedural ink fallback. The portrait is static; there is no lip-sync.
-- The default input may be a USB or virtual device with no signal. Pick the built-in
-  microphone from the footer menu; the app also detects a silent input and says so.
+- The app raises a microphone left near zero and won't suggest the built-in mic while the
+  lid is closed. If a hold is silent, pick the input from the footer or check
+  System Settings → Sound → Input.
 
 ## Credits
 

@@ -34,7 +34,9 @@ enum MicPermission {
 /// Microphone tap converted to mono PCM16 at the rate the ASR model expects.
 final class AudioCapture: @unchecked Sendable {
     // Start/stop are serialized on `queue`; the tap reads immutable format fields.
-    private let engine = AVAudioEngine()
+    // A fresh engine per hold: reusing one after stop + a device switch can leave a stale
+    // tap/format and kill the process on the second hold.
+    private var engine: AVAudioEngine?
     /// Start/stop run here so a slow audio device cannot block the main thread.
     private let queue = DispatchQueue(label: "phonon.capture")
     private var converter: AVAudioConverter?
@@ -60,18 +62,24 @@ final class AudioCapture: @unchecked Sendable {
         guard !running else { return }
         self.onPCM = onPCM
 
+        engine?.stop()
+        let engine = AVAudioEngine()
+        self.engine = engine
+
         let input = engine.inputNode
-        if !deviceUID.isEmpty, let unit = input.audioUnit, let deviceID = AudioDevices.deviceID(forUID: deviceUID) {
-            var id = deviceID
-            let status = AudioUnitSetProperty(
-                unit,
-                kAudioOutputUnitProperty_CurrentDevice,
-                kAudioUnitScope_Global,
-                0,
-                &id,
-                UInt32(MemoryLayout<AudioDeviceID>.size)
-            )
-            DebugLog.write("select input uid=\(deviceUID) status=\(status)")
+        if let volume = AudioDevices.inputVolume(forUID: deviceUID), volume < 0.25 {
+            let target: Float = 0.9
+            if AudioDevices.setInputVolume(target, forUID: deviceUID) {
+                DebugLog.write("input volume raised \(volume) -> \(target) uid=\(deviceUID)")
+            }
+        }
+        if !deviceUID.isEmpty, let deviceID = AudioDevices.deviceID(forUID: deviceUID) {
+            do {
+                try input.auAudioUnit.setDeviceID(deviceID)
+                DebugLog.write("select input uid=\(deviceUID) device=\(deviceID)")
+            } catch {
+                DebugLog.write("select input failed uid=\(deviceUID): \(error.localizedDescription)")
+            }
         }
 
         let format = input.outputFormat(forBus: 0)
@@ -95,7 +103,13 @@ final class AudioCapture: @unchecked Sendable {
             self?.process(buffer)
         }
         engine.prepare()
-        try engine.start()
+        do {
+            try engine.start()
+        } catch {
+            input.removeTap(onBus: 0)
+            self.engine = nil
+            throw error
+        }
         running = true
         DebugLog.write("audio capture started")
     }
@@ -105,8 +119,9 @@ final class AudioCapture: @unchecked Sendable {
         queue.async { [weak self] in
             guard let self, self.running else { return }
             self.running = false
-            self.engine.inputNode.removeTap(onBus: 0)
-            self.engine.stop()
+            self.engine?.inputNode.removeTap(onBus: 0)
+            self.engine?.stop()
+            self.engine = nil
             self.converter = nil
             self.onPCM = nil
         }

@@ -12,6 +12,7 @@ struct PhononCharactersApp: App {
         MouthTrack.selfCheck()
         CharacterLook.selfCheck()
         CharacterScene.selfCheck()
+        StageEffect.selfCheck()
         #endif
     }
 

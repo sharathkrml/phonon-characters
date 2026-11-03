@@ -40,11 +40,23 @@ final class ConversationModel: ObservableObject {
     @Published var micLevel: Float = 0
     @Published var suggestedInputUID: String?
 
+    /// The weather currently playing over the stage, and its manual/automatic origin.
+    @Published private(set) var stageEffect: StageEffect?
+    @Published private(set) var stageStrength: Double = 0.85
+    @Published private(set) var stageStartedAt = Date()
+
+    private let stageAudio = StageAudio()
+    private var stagePickTask: Task<Void, Never>?
+    private var stageClearTask: Task<Void, Never>?
+
     private var responseTask: Task<Void, Never>?
     private var startTask: Task<Void, Never>?
     private var greetTask: Task<Void, Never>?
     private var brainStart: Task<Void, Error>?
     private var finalizeTask: Task<Void, Never>?
+    #if DEBUG
+    private var debugObservers: [NSObjectProtocol] = []
+    #endif
     private var pendingPCM = Data()
     private var didFinalize = false
     private var pressedAt: Date?
@@ -144,6 +156,16 @@ final class ConversationModel: ObservableObject {
         keys.onNext = { [weak self] in self?.step(1) }
         keys.start()
 
+        #if DEBUG
+        let center = DistributedNotificationCenter.default()
+        debugObservers.append(center.addObserver(forName: .init("phonon.debugHold"), object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.beginPushToTalk() }
+        })
+        debugObservers.append(center.addObserver(forName: .init("phonon.debugRelease"), object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.endPushToTalk() }
+        })
+        #endif
+
         if models.voiceReady {
             Task {
                 do { try await phonon.loadIfNeeded() } catch {
@@ -169,6 +191,11 @@ final class ConversationModel: ObservableObject {
 
     func deactivate() {
         keys.stop()
+        #if DEBUG
+        let center = DistributedNotificationCenter.default()
+        debugObservers.forEach(center.removeObserver)
+        debugObservers.removeAll()
+        #endif
     }
 
     func shutdown() {
@@ -176,6 +203,7 @@ final class ConversationModel: ObservableObject {
         interrupt()
         capture.stop()
         transcriber.cancel()
+        setStage(nil)
         brain.stop()
         ears.stop()
     }
@@ -194,11 +222,45 @@ final class ConversationModel: ObservableObject {
         interrupt()
         selectedIndex = next
         prefs.selectedCharacterID = character.id
+        setStage(nil)
 
         let char = character
         guard !visited.contains(char.id) else { return }
         visited.insert(char.id)
         greetTask = Task { await greet(char) }
+    }
+
+    // MARK: - Stage effects
+
+    /// Called by the rail, and by the brain once it has picked a fit for the moment.
+    func setStage(_ effect: StageEffect?, strength: Double = 0.85) {
+        stageClearTask?.cancel()
+        stageClearTask = nil
+
+        guard let effect else {
+            DebugLog.write("stage clear")
+            stageEffect = nil
+            stageAudio.stop()
+            return
+        }
+
+        DebugLog.write("stage effect=\(effect.rawValue) strength=\(strength)")
+        stageEffect = effect
+        stageStrength = min(max(strength, 0.35), 1)
+        stageStartedAt = Date()
+        stageAudio.play(effect, strength: stageStrength)
+
+        stageClearTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(StageEffect.lifetime * 1_000_000_000))
+            guard !Task.isCancelled, let self else { return }
+            self.stageClearTask = nil
+            self.stageEffect = nil
+            self.stageAudio.stop()
+        }
+    }
+
+    func toggleStage(_ effect: StageEffect) {
+        setStage(stageEffect == effect ? nil : effect)
     }
 
     // MARK: - Sending
@@ -215,17 +277,45 @@ final class ConversationModel: ObservableObject {
         phase = .thinking
 
         responseTask = Task { [weak self] in
-            await self?.respond(char: char, replyID: reply.id)
+            await self?.respond(char: char, replyID: reply.id, userText: text)
         }
     }
 
-    private func respond(char: Persona, replyID: UUID) async {
+    private func respond(char: Persona, replyID: UUID, userText: String) async {
         do {
             try await ensureBrain()
+
+            stagePickTask?.cancel()
+            if prefs.stageEffects {
+                let capability = StageEffect.asksForCapabilities(userText)
+                stagePickTask = Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    // The tool call is the normal path. A capability question always shows the
+                    // signature move: the demo is fixed, the model just has to name the abilities.
+                    if capability, let signature = StageEffect.abilities(for: char.id).first {
+                        guard !Task.isCancelled, self.character.id == char.id else { return }
+                        DebugLog.write("stage capability -> \(signature.effect.rawValue)")
+                        self.setStage(signature.effect, strength: 0.8)
+                        return
+                    }
+                    guard let choice = await StageBrain.choose(
+                        port: self.brain.port,
+                        character: char,
+                        message: userText
+                    ) else { return }
+                    guard !Task.isCancelled, self.character.id == char.id else { return }
+                    DebugLog.write("stage tool chose \(choice.effect.rawValue) \(choice.strength)")
+                    self.setStage(choice.effect, strength: choice.strength)
+                }
+            }
+
             let history: [(String, String)] = messages(for: char.id)
                 .filter { $0.id != replyID }
                 .map { ($0.role == .user ? "user" : "assistant", $0.text) }
-            let prompt = PersonaPrompt.messages(for: char, history: history)
+            let stageBrief = prefs.stageEffects && StageEffect.asksForCapabilities(userText)
+                ? StageBrain.capabilityBrief(for: char)
+                : nil
+            let prompt = PersonaPrompt.messages(for: char, history: history, stageBrief: stageBrief)
 
             var buffer = ""
             var think = ThinkingFilter()
@@ -321,6 +411,8 @@ final class ConversationModel: ObservableObject {
         responseTask = nil
         greetTask?.cancel()
         greetTask = nil
+        stagePickTask?.cancel()
+        stagePickTask = nil
         phonon.stop()
         audioEnd = .distantPast
         if phase != .listening { phase = .idle }
@@ -471,12 +563,15 @@ final class ConversationModel: ObservableObject {
                 let name = prefs.inputDeviceUID.isEmpty
                     ? "the system default input"
                     : (AudioDevices.name(for: prefs.inputDeviceUID) ?? "this input")
-                hint = "No signal from \(name)."
-                suggestedInputUID = Self.suggestedAlternative(to: prefs.inputDeviceUID)
+                hint = "No signal from \(name). Raise the input level in System Settings → Sound → Input, or pick another microphone below."
+                suggestedInputUID = suggestedAlternative(to: prefs.inputDeviceUID)
                 DebugLog.write("silent hold peak=\(sessionPeak) uid=\(prefs.inputDeviceUID)")
             }
             if phase == .listening { phase = .idle }
             return
+        }
+        if sessionPeak > 0.02, !prefs.inputDeviceUID.isEmpty {
+            prefs.lastWorkingInputUID = prefs.inputDeviceUID
         }
         send(clean)
     }
@@ -524,14 +619,20 @@ final class ConversationModel: ObservableObject {
         DebugLog.write("input fallback uid=\(uid)")
     }
 
-    private static func suggestedAlternative(to uid: String) -> String? {
+    private func suggestedAlternative(to uid: String) -> String? {
+        if !prefs.lastWorkingInputUID.isEmpty,
+           prefs.lastWorkingInputUID != uid,
+           AudioDevices.name(for: prefs.lastWorkingInputUID) != nil {
+            return prefs.lastWorkingInputUID
+        }
+        guard !AudioDevices.builtInMicUnavailable else { return nil }
         let inputs = AudioDevices.inputs()
         if let builtIn = inputs.first(where: {
             $0.id == "BuiltInMicrophoneDevice" || $0.name.localizedCaseInsensitiveContains("MacBook")
         }), builtIn.id != uid {
             return builtIn.id
         }
-        return inputs.first(where: { $0.id != uid })?.id
+        return nil
     }
 
     private static func rms(_ data: Data) -> Float {

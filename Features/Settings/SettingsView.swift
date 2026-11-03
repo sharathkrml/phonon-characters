@@ -42,6 +42,11 @@ struct SettingsView: View {
                 Text("Turn this off for silent, text-only replies. The microphone still works.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
+
+                Toggle("Let characters change the scene", isOn: $prefs.stageEffects)
+                Text("When asked what they can do, characters may summon rain, snow, fog and the like. The rail on the right of the stage always works by hand.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
             }
 
             Section("About") {

@@ -73,16 +73,96 @@ enum BrainClient {
             continuation.onTermination = { _ in task.cancel() }
         }
     }
+
+    /// One non-streaming turn that lets the model choose a tool. llama.cpp's `--jinja` template
+    /// turns the tools into real `tool_calls`, so the app never parses an effect out of prose.
+    static func completeToolCall(
+        port: Int,
+        system: String,
+        user: String,
+        tools: [BrainTool],
+        maxTokens: Int = 80
+    ) async -> BrainToolCall? {
+        guard let url = URL(string: "http://127.0.0.1:\(port)/v1/chat/completions") else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 12
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = [
+            "model": "local",
+            "messages": [
+                ["role": "system", "content": system],
+                ["role": "user", "content": user],
+            ],
+            "stream": false,
+            "temperature": 0.2,
+            "max_tokens": maxTokens,
+            "chat_template_kwargs": ["enable_thinking": false],
+            "tool_choice": "auto",
+            "tools": tools.map { tool in
+                [
+                    "type": "function",
+                    "function": [
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.parameters,
+                    ],
+                ]
+            },
+        ]
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return nil }
+        request.httpBody = httpBody
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let choices = json["choices"] as? [[String: Any]],
+              let message = choices.first?["message"] as? [String: Any],
+              let calls = message["tool_calls"] as? [[String: Any]],
+              let first = calls.first,
+              let function = first["function"] as? [String: Any],
+              let name = function["name"] as? String
+        else { return nil }
+
+        var arguments: [String: Any] = [:]
+        if let text = function["arguments"] as? String,
+           let data = text.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            arguments = parsed
+        } else if let parsed = function["arguments"] as? [String: Any] {
+            arguments = parsed
+        }
+        return BrainToolCall(name: name, arguments: arguments)
+    }
+}
+
+struct BrainTool {
+    let name: String
+    let description: String
+    let parameters: [String: Any]
+}
+
+struct BrainToolCall {
+    let name: String
+    let arguments: [String: Any]
 }
 
 enum PersonaPrompt {
-    static func messages(for character: Persona, history: [(String, String)]) -> [BrainClient.Message] {
+    static func messages(
+        for character: Persona,
+        history: [(String, String)],
+        stageBrief: String? = nil
+    ) -> [BrainClient.Message] {
         let rules = """
         Stay fully in character. Answer in at most two short sentences that sound good spoken \
         aloud. Stop when the thought is complete. Never use markdown, bullet points, lists, \
         emoji, asterisks or stage directions. Never mention that you are an AI or a model.
         """
-        var list = [BrainClient.Message(role: "system", content: "\(character.persona)\n\n\(rules)")]
+        var system = "\(character.persona)\n\n\(rules)"
+        if let stageBrief {
+            system += "\n\n\(stageBrief)"
+        }
+        var list = [BrainClient.Message(role: "system", content: system)]
         for (role, text) in history.suffix(10) {
             list.append(.init(role: role, content: text))
         }
@@ -99,20 +179,49 @@ struct ThinkingFilter {
         buffer += token
         var out = ""
         while true {
-            let tag = inside ? "</think" : "<think"
-            guard let range = buffer.range(of: tag) else {
-                let keep = Self.holdback(buffer, tag: tag)
-                if !inside { out.append(contentsOf: buffer.dropLast(keep)) }
-                buffer = String(buffer.suffix(keep))
-                return out
+            if inside {
+                guard let range = buffer.range(of: "</think") else {
+                    buffer = String(buffer.suffix(Self.holdback(buffer, tag: "</think")))
+                    return out
+                }
+                guard let end = buffer[range.upperBound...].firstIndex(of: ">") else {
+                    buffer = String(buffer[range.lowerBound...])
+                    return out
+                }
+                buffer = String(buffer[buffer.index(after: end)...])
+                inside = false
+                continue
             }
-            if !inside { out.append(contentsOf: buffer[..<range.lowerBound]) }
-            guard let end = buffer[range.upperBound...].firstIndex(of: ">") else {
-                buffer = String(buffer[range.lowerBound...])
-                return out
+
+            let open = buffer.range(of: "<think")
+            let close = buffer.range(of: "</think")
+
+            // A closing tag with no opening: everything before it was reasoning that the
+            // template never wrapped. Drop the prefix and keep the final answer.
+            if let close, open.map({ close.lowerBound < $0.lowerBound }) ?? true {
+                guard let end = buffer[close.upperBound...].firstIndex(of: ">") else {
+                    buffer = String(buffer[close.lowerBound...])
+                    return out
+                }
+                buffer = String(buffer[buffer.index(after: end)...])
+                continue
             }
-            buffer = String(buffer[buffer.index(after: end)...])
-            inside.toggle()
+
+            if let open {
+                out.append(contentsOf: buffer[..<open.lowerBound])
+                guard let end = buffer[open.upperBound...].firstIndex(of: ">") else {
+                    buffer = String(buffer[open.lowerBound...])
+                    return out
+                }
+                buffer = String(buffer[buffer.index(after: end)...])
+                inside = true
+                continue
+            }
+
+            let keep = max(Self.holdback(buffer, tag: "<think"), Self.holdback(buffer, tag: "</think"))
+            out.append(contentsOf: buffer.dropLast(keep))
+            buffer = String(buffer.suffix(keep))
+            return out
         }
     }
 

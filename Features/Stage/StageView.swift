@@ -18,7 +18,24 @@ struct StageView: View {
 
                 characterStage(size: geo.size)
 
+                if let effect = model.stageEffect {
+                    StageFXLayer(
+                        effect: effect,
+                        strength: model.stageStrength,
+                        palette: character.palette,
+                        startedAt: model.stageStartedAt
+                    )
+                    .transition(.opacity.animation(.easeInOut(duration: 0.9)))
+                }
+
                 topScrim
+
+                StageFXRail(
+                    abilities: StageEffect.abilities(for: character.id),
+                    active: model.stageEffect
+                ) { model.toggleStage($0) }
+                .padding(.trailing, 18)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
 
                 VStack(spacing: 0) {
                     hud
