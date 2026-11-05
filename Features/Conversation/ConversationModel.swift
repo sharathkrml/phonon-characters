@@ -39,6 +39,10 @@ final class ConversationModel: ObservableObject {
     @Published var busyLoading = false
     @Published var micLevel: Float = 0
     @Published var suggestedInputUID: String?
+    /// Decode speed of the last reply (llama.cpp `predicted_per_second`).
+    @Published private(set) var brainSpeed: Double?
+    /// Audio seconds transcribed per second of the last listen session.
+    @Published private(set) var earsSpeed: Double?
 
     /// The weather currently playing over the stage, and its manual/automatic origin.
     @Published private(set) var stageEffect: StageEffect?
@@ -66,6 +70,8 @@ final class ConversationModel: ObservableObject {
     private var started = false
     private var loggedAudio = false
     private var sessionPeak: Float = 0
+    private var capturedBytes = 0
+    private var listenStartedAt = Date()
 
     init(models: ModelStore, ears: EarsEngine) {
         self.models = models
@@ -319,7 +325,13 @@ final class ConversationModel: ObservableObject {
 
             var buffer = ""
             var think = ThinkingFilter()
-            for try await token in BrainClient.stream(port: brain.port, messages: prompt) {
+            for try await token in BrainClient.stream(
+                port: brain.port,
+                messages: prompt,
+                onTokensPerSecond: { [weak self] speed in
+                    Task { @MainActor in self?.brainSpeed = speed }
+                }
+            ) {
                 try Task.checkCancellation()
                 let visible = think.feed(token)
                 guard !visible.isEmpty else { continue }
@@ -442,9 +454,11 @@ final class ConversationModel: ObservableObject {
         suggestedInputUID = nil
         isListening = true
         pressedAt = Date()
+        listenStartedAt = Date()
         phase = .listening
         loggedAudio = false
         sessionPeak = 0
+        capturedBytes = 0
         pendingPCM = Data()
         didFinalize = false
 
@@ -474,6 +488,7 @@ final class ConversationModel: ObservableObject {
                         self.loggedAudio = true
                         DebugLog.write("first audio chunk bytes=\(data.count)")
                     }
+                    self.capturedBytes += data.count
                     if level > self.sessionPeak { self.sessionPeak = level }
                     self.micLevel = level
                     if level > 0.02, self.suggestedInputUID != nil {
@@ -556,7 +571,12 @@ final class ConversationModel: ObservableObject {
         }
 
         let text = await transcriber.finish()
-        DebugLog.write("finish transcript chars=\(text.count) peak=\(sessionPeak)")
+        let audioSeconds = Double(capturedBytes) / (transcriber.sampleRate * 2)
+        let wall = Date().timeIntervalSince(listenStartedAt)
+        if audioSeconds > 0.5, wall > 0 {
+            earsSpeed = audioSeconds / wall
+        }
+        DebugLog.write("finish transcript chars=\(text.count) peak=\(sessionPeak) rtf=\(earsSpeed ?? 0)")
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if clean.isEmpty {
             if sessionPeak < 0.01 {

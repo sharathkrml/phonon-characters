@@ -16,7 +16,12 @@ enum BrainClient {
         }
     }
 
-    static func stream(port: Int, messages: [Message], maxTokens: Int = 160) -> AsyncThrowingStream<String, Error> {
+    static func stream(
+        port: Int,
+        messages: [Message],
+        maxTokens: Int = 160,
+        onTokensPerSecond: (@Sendable (Double) -> Void)? = nil
+    ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -31,6 +36,8 @@ enum BrainClient {
                         "model": "local",
                         "messages": messages.map { ["role": $0.role, "content": $0.content] },
                         "stream": true,
+                        // The final SSE chunk then carries llama.cpp's decode timings.
+                        "stream_options": ["include_usage": true],
                         "temperature": 0.85,
                         "top_p": 0.95,
                         "max_tokens": maxTokens,
@@ -58,8 +65,14 @@ enum BrainClient {
                         let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
                         if payload == "[DONE]" { break }
                         guard let data = payload.data(using: .utf8),
-                              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                              let choices = json["choices"] as? [[String: Any]],
+                              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                        else { continue }
+                        if let timings = json["timings"] as? [String: Any],
+                           let speed = timings["predicted_per_second"] as? Double,
+                           speed > 0 {
+                            onTokensPerSecond?(speed)
+                        }
+                        guard let choices = json["choices"] as? [[String: Any]],
                               let delta = choices.first?["delta"] as? [String: Any],
                               let token = delta["content"] as? String
                         else { continue }

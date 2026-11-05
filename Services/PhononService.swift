@@ -62,6 +62,8 @@ final class PhononService: ObservableObject {
     @Published private(set) var mouth = MouthShape.closed
     @Published private(set) var currentVoice = ""
     @Published private(set) var loadNote: String?
+    /// Audio seconds generated per second of compute for the last utterance.
+    @Published private(set) var voiceSpeed: Double?
 
     private var phonon: Phonon?
     private var player: VoicePlayer?
@@ -112,9 +114,11 @@ final class PhononService: ObservableObject {
         guard let player else { return nil }
         track = MouthTrack(text: trimmed)
         lastTick = Date()
-        return try await phonon.speak(trimmed) { chunk in
+        let stats = try await phonon.speak(trimmed) { chunk in
             player.enqueue(chunk)
         }
+        voiceSpeed = stats.realtimeFactor
+        return stats
     }
 
     func stop() {

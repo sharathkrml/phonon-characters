@@ -103,10 +103,18 @@ struct StageView: View {
                 .foregroundStyle(Theme.parchment.opacity(0.72))
                 .shadow(color: .black.opacity(0.35), radius: 3, y: 1)
             Spacer()
-            statusChip("Voice", ready: model.models.voiceReady)
-            statusChip("Brain", ready: model.models.brainReady)
-            statusChip("Ears", ready: model.ears.engineInstalled)
+            statusChip("Voice", ready: model.models.voiceReady, value: model.phonon.voiceSpeed.map(factor))
+            statusChip("Brain", ready: model.models.brainReady, value: model.brainSpeed.map(tokens))
+            statusChip("Ears", ready: model.ears.engineInstalled, value: model.earsSpeed.map(factor))
         }
+    }
+
+    private func tokens(_ speed: Double) -> String {
+        speed >= 100 ? String(format: "%.0f tok/s", speed) : String(format: "%.1f tok/s", speed)
+    }
+
+    private func factor(_ value: Double) -> String {
+        value >= 10 ? String(format: "%.0f×", value) : String(format: "%.1f×", value)
     }
 
     private static let logoImage = Bundle.main
@@ -128,7 +136,7 @@ struct StageView: View {
         .accessibilityLabel("Phonon Characters")
     }
 
-    private func statusChip(_ label: String, ready: Bool) -> some View {
+    private func statusChip(_ label: String, ready: Bool, value: String? = nil) -> some View {
         HStack(spacing: 5) {
             Circle()
                 .fill(ready ? Theme.ready : Theme.parchment.opacity(0.35))
@@ -137,6 +145,11 @@ struct StageView: View {
                 .font(Theme.label(9.5))
                 .tracking(1.1)
                 .textCase(.uppercase)
+            if let value {
+                Text(value)
+                    .font(Theme.label(9.5).monospacedDigit())
+                    .foregroundStyle(Theme.parchment.opacity(0.45))
+            }
         }
         .foregroundStyle(Theme.parchment.opacity(0.72))
         .padding(.horizontal, 9)
